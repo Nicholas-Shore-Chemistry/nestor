@@ -304,7 +304,7 @@ test("git stderr is not inherited: a term in a git error never reaches the outpu
   assert.ok(!r.all.toLowerCase().includes(TERM), r.all);
 });
 
-test("the ancestor check runs on the scanned hashes, after the scan: a tag off main with a hit exits 1, clean exits 3", () => {
+test("the ancestor check runs on the scanned hashes, after the scan: a tag off main with a clean history exits 3", () => {
   const { repo, bare } = setup();
   git(repo, ["checkout", "-q", "-b", "side"]);
   commit(repo, { "b.txt": "side\n" });
@@ -312,6 +312,18 @@ test("the ancestor check runs on the scanned hashes, after the scan: a tag off m
   git(repo, ["checkout", "-q", "main"]);
   const r = push(repo, bare, ["--tag", "v1"]);
   assert.equal(r.code, 3, r.all);
+  assert.equal(refs(bare), "");
+});
+
+test("a tag off main whose history has a hit exits 1 and pushes nothing", () => {
+  const { repo, bare } = setup();
+  git(repo, ["checkout", "-q", "-b", "side"]);
+  commit(repo, { "b.txt": `${TERM}
+` });
+  git(repo, ["tag", "v1"]);
+  git(repo, ["checkout", "-q", "main"]);
+  const r = push(repo, bare, ["--tag", "v1"]);
+  assert.equal(r.code, 1, r.all);
   assert.equal(refs(bare), "");
 });
 

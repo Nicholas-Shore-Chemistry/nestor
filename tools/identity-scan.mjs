@@ -125,22 +125,16 @@ export function hitLines(b, bad) {
 export const textHit = (b, bad) => readings(b).some((r) => bad(r.join("\n")));
 
 /**
- * Scans every header line of a commit or tag except the gpgsig block (mergetag, unknown headers and continuation lines included).
+ * Scans every header line of a commit or tag (gpgsig block, mergetag, unknown headers and continuation lines included).
+ * Nothing is skipped, not even base64 signature lines; a signature block simply ends at the first non-continuation line.
  * An ident line that does not parse is itself a hit.
  */
 function scanHeader(header, prefix, hit, bad) {
-  let inSig = false;
   for (const l of header.split("\n")) {
     if (l.startsWith(" ")) {
-      // inside a signature only pure base64 lines are skipped; armor lines such as a Comment are scanned
-      if (!(inSig && /^ [A-Za-z0-9+/=]*$/.test(l)) && bad(l)) hit(`${prefix}:header`);
-      continue;
-    }
-    if (inSig) {
       if (bad(l)) hit(`${prefix}:header`);
       continue;
     }
-    inSig = /^gpgsig(-sha256)?( |$)/.test(l);
     const id = /^(author|committer|tagger) /.exec(l);
     if (id) {
       const m = /^(?:author|committer|tagger) ([^]*?) ?<([^<>]*)> \d+ [+-]\d{4}$/.exec(l);

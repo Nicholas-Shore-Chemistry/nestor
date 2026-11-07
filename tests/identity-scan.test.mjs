@@ -288,7 +288,7 @@ test("headers: unknown extra header is scanned", () => {
   assert.deepEqual(scan(d), [`${short(c)}:header`]);
 });
 
-test("headers: gpgsig block is the only thing skipped", () => {
+test("headers: a clean gpgsig block is no hit", () => {
   const d = mkrepo();
   commit(d, { "a.txt": "x\n" });
   const c = crafted(d, "gpgsig -----BEGIN PGP SIGNATURE-----\n \n abcdef\n -----END PGP SIGNATURE-----\n");
@@ -493,7 +493,7 @@ test("commit message with a NUL-separated term keeps the word limits", () => {
   assert.deepEqual(scan(d), [`${short(c)}:message`]);
 });
 
-test("gpgsig: armor lines and the first line are scanned, only base64 lines are skipped", () => {
+test("gpgsig: armor lines and the first line are scanned", () => {
   const sigs = {
     comment: `gpgsig -----BEGIN PGP SIGNATURE-----\n Comment: ${TERM}@example.invalid\n \n iQEzBAABCAAdFiEE\n -----END PGP SIGNATURE-----\n`,
     first: `gpgsig ${TERM}\n \n iQEzBAAB\n`,
@@ -505,6 +505,31 @@ test("gpgsig: armor lines and the first line are scanned, only base64 lines are 
     const c = crafted(d, s);
     assert.deepEqual(scan(d), [`${short(c)}:header`], k);
   }
+});
+
+// a term without a hyphen looks like base64, which the old scanner skipped inside signatures
+const B64 = "fixturesecret";
+const scanB = (dir) => scanRepo(dir, ["main"], loadDenylist(`(^|[^a-z])${B64}([^a-z]|$)`, null));
+test("gpgsig: a signature block ends at the first non-continuation line (mergetag after it is scanned)", () => {
+  const d = mkrepo();
+  const h = commit(d, { "a.txt": "x\n" });
+  const sig = "gpgsig -----BEGIN PGP SIGNATURE-----\n \n iQEzBAAB\n -----END PGP SIGNATURE-----\n";
+  const c = crafted(d, `${sig}mergetag object ${h}\n type commit\n ${B64}\n`);
+  assert.deepEqual(scanB(d), [`${short(c)}:header`]);
+});
+
+test("gpgsig: a lone term on a base64-looking signature line is a hit", () => {
+  const d = mkrepo();
+  commit(d, { "a.txt": "x\n" });
+  const c = crafted(d, `gpgsig -----BEGIN PGP SIGNATURE-----\n \n ${B64}\n -----END PGP SIGNATURE-----\n`);
+  assert.deepEqual(scanB(d), [`${short(c)}:header`]);
+});
+
+test("gpgsig: a header line after the signature block is scanned", () => {
+  const d = mkrepo();
+  commit(d, { "a.txt": "x\n" });
+  const c = crafted(d, `gpgsig -----BEGIN PGP SIGNATURE-----\n \n iQEzBAAB\n -----END PGP SIGNATURE-----\nx-extra ${TERM}\n`);
+  assert.deepEqual(scan(d), [`${short(c)}:header`]);
 });
 
 test("option values may not start with --", () => {
