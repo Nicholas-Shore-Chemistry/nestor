@@ -25,9 +25,27 @@ jobs:
     runs-on: ubuntu-latest
     env:
       TAG: ${{ inputs.tag || github.ref_name }}
-      DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run }}
       PUBLIC_REMOTE: git@github.com:Nicholas-Shore-Chemistry/nestor.git
     steps:
+      - name: Check tag and mode
+        env:
+          EVENT: ${{ github.event_name }}
+          DRY_RUN_INPUT: ${{ inputs.dry_run }}
+        run: |
+          case "$TAG" in
+            "" | -* | *[!A-Za-z0-9._-]*) echo "tag has invalid characters" >&2; exit 1 ;;
+            nestor--v[0-9]*) ;;
+            *) echo "tag does not match the release tag pattern" >&2; exit 1 ;;
+          esac
+          case "$EVENT" in
+            push) DRY=false ;;
+            workflow_dispatch) if [ "$DRY_RUN_INPUT" = "false" ]; then DRY=false; else DRY=true; fi ;;
+            *) DRY=true ;;
+          esac
+          case "$TAG" in
+            *-dryrun) if [ "$DRY" = "false" ]; then echo "a -dryrun tag cannot be pushed for real" >&2; exit 1; fi ;;
+          esac
+          echo "DRY_RUN=$DRY" >> "$GITHUB_ENV"
       - uses: actions/checkout@v4
         with:
           ref: main
@@ -62,7 +80,7 @@ jobs:
             echo "no ed25519 host key found" >&2
             exit 1
           fi
-          echo "GIT_SSH_COMMAND=ssh -i $key -o IdentitiesOnly=yes -o UserKnownHostsFile=$hosts -o StrictHostKeyChecking=yes" >> "$GITHUB_ENV"
+          echo "GIT_SSH_COMMAND=ssh -i $key -o IdentitiesOnly=yes -o UserKnownHostsFile=$hosts -o GlobalKnownHostsFile=/dev/null -o StrictHostKeyChecking=yes" >> "$GITHUB_ENV"
       - name: Release push
         env:
           IDENTITY_DENYLIST: ${{ secrets.IDENTITY_DENYLIST }}

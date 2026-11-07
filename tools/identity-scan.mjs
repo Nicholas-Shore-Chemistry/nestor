@@ -4,9 +4,9 @@
 // itself matches is reported by object hash.
 //
 // Exit codes: 0 clean (or skipped), 1 hits, 2 no usable terms with --release or an invalid term,
-// 3 a ref does not resolve or git failed.
+// 3 a ref does not resolve or git failed, 5 usage error (unknown, repeated or incomplete argument).
 import { execFileSync } from "node:child_process";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, realpathSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -20,10 +20,14 @@ import { fileURLToPath } from "node:url";
  */
 export function loadDenylist(envValue, fileText) {
   const text = envValue && envValue.trim() ? envValue : (fileText ?? "");
+  // NUL, U+FFFD (undecodable bytes, e.g. a UTF-16 file) and a BOM anywhere mean the list was not read as plain text.
+  if (/[\u0000\uFFFD\uFEFF]/.test(text)) throw new Error("denylist is not plain UTF-8 text");
   const terms = [];
   text.split(/\r\n|\n|\r/).forEach((raw, i) => {
     const t = raw.trim();
     if (!t || t.startsWith("#")) return;
+    // an inline comment would silently become part of the pattern; backreferences break once terms are joined
+    if (/\s#/.test(t) || /\\[1-9]|\\k</.test(t)) throw new Error(`invalid denylist term at line ${i + 1}`);
     try {
       new RegExp(t, "im");
     } catch {
@@ -31,14 +35,104 @@ export function loadDenylist(envValue, fileText) {
     }
     terms.push(`(?:${t})`);
   });
-  return terms.length ? new RegExp(terms.join("|"), "im") : null;
+  if (!terms.length) return null;
+  try {
+    return new RegExp(terms.join("|"), "im");
+  } catch {
+    throw new Error("denylist could not be compiled");
+  }
 }
 
 const short = (h) => h.slice(0, 10);
 
+/** Environment for every git call: replace refs must never change what is scanned or pushed. */
+export const gitEnv = () => ({ ...process.env, GIT_NO_REPLACE_OBJECTS: "1" });
+
 function makeGit(repoDir) {
   return (args, input) =>
-    execFileSync("git", ["-C", repoDir, ...args], { input, maxBuffer: 1 << 30, stdio: ["pipe", "pipe", "pipe"], windowsHide: true });
+    execFileSync("git", ["-C", repoDir, ...args], { input, maxBuffer: 1 << 30, stdio: ["pipe", "pipe", "pipe"], windowsHide: true, env: gitEnv() });
+}
+
+/** True when this module is the program being run, also through a symlink, junction or different path case. */
+export function isMain(metaUrl) {
+  try {
+    return !!process.argv[1] && realpathSync.native(process.argv[1]) === realpathSync.native(fileURLToPath(metaUrl));
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Strict argument parser. spec maps each flag to true (takes a value) or false (switch).
+ * @returns {Record<string, string | true> | null} null on an unknown, repeated or value-less flag or a stray argument
+ */
+export function parseArgs(argv, spec) {
+  const vals = {};
+  for (let i = 0; i < argv.length; i++) {
+    const f = argv[i];
+    if (!Object.hasOwn(spec, f) || Object.hasOwn(vals, f)) return null;
+    if (spec[f]) {
+      if (argv[i + 1] === undefined) return null;
+      vals[f] = argv[++i];
+    } else vals[f] = true;
+  }
+  return vals;
+}
+
+/** Text views of a blob that contains NUL bytes: UTF-16 (BOM or NUL pattern) plus NUL-stripped readings. */
+function nulBlobTexts(b) {
+  const texts = [];
+  let wide = false;
+  const swapped = () => Buffer.from(b.subarray(0, b.length - (b.length % 2))).swap16();
+  if (b.length >= 2 && b[0] === 0xff && b[1] === 0xfe) {
+    texts.push(b.subarray(2).toString("utf16le"));
+    wide = true;
+  } else if (b.length >= 2 && b[0] === 0xfe && b[1] === 0xff) {
+    texts.push(swapped().subarray(2).toString("utf16le"));
+    wide = true;
+  } else {
+    let even = 0;
+    let odd = 0;
+    for (let i = 0; i < b.length; i++) if (b[i] === 0) (i % 2 ? odd++ : even++);
+    const pairs = Math.max(1, b.length >> 1);
+    if (odd / pairs >= 0.25 && odd > even) {
+      texts.push(b.toString("utf16le"));
+      wide = true;
+    } else if (even / pairs >= 0.25 && even > odd) {
+      texts.push(swapped().toString("utf16le"));
+      wide = true;
+    }
+  }
+  const stripped = Buffer.from(b.filter((x) => x !== 0));
+  texts.push(stripped.toString("latin1"), stripped.toString("utf8"));
+  return { texts, wide };
+}
+
+/**
+ * Scans every header line of a commit or tag except the gpgsig block (mergetag, unknown headers and continuation lines included).
+ * An ident line that does not parse is itself a hit.
+ */
+function scanHeader(header, prefix, hit, bad) {
+  let inSig = false;
+  for (const l of header.split("\n")) {
+    if (l.startsWith(" ")) {
+      if (!inSig && bad(l)) hit(`${prefix}:header`);
+      continue;
+    }
+    inSig = /^gpgsig(-sha256)?( |$)/.test(l);
+    if (inSig) continue;
+    const id = /^(author|committer|tagger) /.exec(l);
+    if (id) {
+      const m = /^(?:author|committer|tagger) ([^]*?) ?<([^<>]*)> \d+ [+-]\d{4}$/.exec(l);
+      if (!m) hit(`${prefix}:${id[1]}-unparsed`);
+      else {
+        if (bad(m[1])) hit(`${prefix}:${id[1]}-name`);
+        if (bad(m[2])) hit(`${prefix}:${id[1]}-email`);
+      }
+    } else if (l.startsWith("tag ")) {
+      if (bad(l.slice(4))) hit(`${prefix}:name`);
+    } else if (bad(l)) hit(`${prefix}:header`);
+  }
 }
 
 /** Resolves a ref name to { hash, tagName } or throws a message without the ref name. */
@@ -57,7 +151,8 @@ function resolveRef(git, ref, index) {
   throw fail();
 }
 
-function parseObjects(buf) {
+/** Parses `git cat-file --batch` output; throws when git reports an object as missing. */
+export function parseObjects(buf) {
   const objs = [];
   let pos = 0;
   while (pos < buf.length) {
@@ -80,12 +175,12 @@ function splitMessage(text) {
  * @param {string} repoDir
  * @param {string[]} refs branch or tag names (or full refs); each must resolve
  * @param {RegExp} deny
- * @returns {string[]} hit locations; `.stats` holds counts. Throws when a ref does not resolve.
+ * @returns {string[]} hit locations; `.stats` holds counts and the hashes of binary blobs that could not be read as text (`skipped`), `.resolved` the { hash, tagName } of each ref scanned. Throws when a ref does not resolve.
  */
 export function scanRepo(repoDir, refs, deny) {
   const git = makeGit(repoDir);
   const hits = new Set();
-  const stats = { commits: 0, blobs: 0, binary: 0, tags: 0 };
+  const stats = { commits: 0, blobs: 0, binary: 0, tags: 0, skipped: [] };
   const hit = (loc) => hits.add(loc);
   const bad = (s) => deny.test(s);
 
@@ -119,24 +214,12 @@ export function scanRepo(repoDir, refs, deny) {
     if (o.type === "commit") {
       stats.commits++;
       const { header, message } = splitMessage(o.body.toString("utf8"));
-      for (const l of header.split("\n")) {
-        const m = /^(author|committer) (.*?) ?<([^<>]*)> \d+ [+-]\d{4}$/.exec(l);
-        if (!m) continue;
-        if (bad(m[2])) hit(`${short(o.hash)}:${m[1]}-name`);
-        if (bad(m[3])) hit(`${short(o.hash)}:${m[1]}-email`);
-      }
+      scanHeader(header, short(o.hash), hit, bad);
       if (bad(message)) hit(`${short(o.hash)}:message`);
     } else if (o.type === "tag") {
       if (!resolved.some((r) => r.tagName !== null && r.hash === o.hash) && !want.has(o.hash)) stats.tags++;
       const { header, message } = splitMessage(o.body.toString("utf8"));
-      for (const l of header.split("\n")) {
-        if (l.startsWith("tag ") && bad(l.slice(4))) hit(`tag:${short(o.hash)}:name`);
-        const m = /^tagger (.*?) ?<([^<>]*)> \d+ [+-]\d{4}$/.exec(l);
-        if (m) {
-          if (bad(m[1])) hit(`tag:${short(o.hash)}:tagger-name`);
-          if (bad(m[2])) hit(`tag:${short(o.hash)}:tagger-email`);
-        }
-      }
+      scanHeader(header, `tag:${short(o.hash)}`, hit, bad);
       if (bad(message)) hit(`tag:${short(o.hash)}:message`);
     } else if (o.type === "tree") {
       let p = 0;
@@ -155,20 +238,24 @@ export function scanRepo(repoDir, refs, deny) {
       const path = pathOf.get(o.hash) ?? "";
       if (path && bad(path)) hit(`${short(o.hash)}:path`);
       const label = !path || bad(path) ? short(o.hash) : path;
-      if (o.body.subarray(0, 8000).includes(0)) {
-        stats.binary++;
-        continue;
+      let texts = [o.body.toString("utf8")];
+      if (o.body.includes(0)) {
+        const r = nulBlobTexts(o.body);
+        texts = r.texts;
+        if (!r.wide) {
+          stats.binary++;
+          stats.skipped.push(o.hash);
+        }
       }
-      o.body
-        .toString("utf8")
-        .split("\n")
-        .forEach((line, i) => {
+      for (const t of texts)
+        t.split("\n").forEach((line, i) => {
           if (bad(line)) hit(`${label}:${i + 1}`);
         });
     }
   }
   const out = [...hits];
   Object.defineProperty(out, "stats", { value: stats });
+  Object.defineProperty(out, "resolved", { value: resolved });
   return out;
 }
 
@@ -183,14 +270,15 @@ export function loadDenylistFor(root, env = process.env) {
 }
 
 function main(argv) {
-  const release = argv.includes("--release");
-  const val = (flag) => {
-    const i = argv.indexOf(flag);
-    return i >= 0 ? argv[i + 1] : undefined;
-  };
+  const vals = parseArgs(argv, { "--release": false, "--repo": true, "--refs": true });
+  if (!vals) {
+    console.error("usage: identity-scan [--release] [--repo <dir>] [--refs <a,b>]");
+    return 5;
+  }
+  const release = vals["--release"] === true;
   let root;
   try {
-    root = val("--repo") ? resolve(val("--repo")) : toplevel(process.cwd());
+    root = vals["--repo"] ? resolve(vals["--repo"]) : toplevel(process.cwd());
   } catch {
     console.error("not inside a git repository");
     return 3;
@@ -210,13 +298,17 @@ function main(argv) {
     console.log("skipped: no denylist terms configured");
     return 0;
   }
-  let refs = val("--refs")?.split(",").filter(Boolean);
+  let refs = vals["--refs"]?.split(",").filter(Boolean);
   try {
     if (!refs) {
-      const tags = execFileSync("git", ["-C", root, "for-each-ref", "--format=%(refname:short)", "refs/tags"], { encoding: "utf8" })
+      const tags = execFileSync("git", ["-C", root, "for-each-ref", "--format=%(refname)", "refs/tags"], {
+        encoding: "utf8",
+        stdio: ["ignore", "pipe", "pipe"],
+        env: gitEnv(),
+      })
         .split("\n")
         .filter(Boolean);
-      refs = ["main", ...tags.map((t) => `refs/tags/${t}`)];
+      refs = ["main", ...tags];
     }
     const hits = scanRepo(root, refs, deny);
     const s = hits.stats;
@@ -229,6 +321,6 @@ function main(argv) {
   }
 }
 
-if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+if (isMain(import.meta.url)) {
   process.exitCode = main(process.argv.slice(2));
 }

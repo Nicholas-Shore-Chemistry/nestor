@@ -3,14 +3,14 @@
 //   node tools/release-push.mjs --remote <url> --tag <tag> [--dry-run]
 //
 // Exit codes: 0 pushed (or dry run clean), 1 scan hits, 2 no usable denylist terms or an invalid term,
-// 3 tag problem (missing, invalid name, not on main) or main missing, 4 push refused, 5 usage error (remote).
-// The push is atomic, so a refused main cannot leave the tag behind. Other branches are never pushed.
+// 3 tag problem (missing, invalid name, not on main), main missing, or the scan could not complete,
+// 4 push refused, 5 usage error (unknown or repeated argument, remote).
+// The push is atomic, so a refused main cannot leave the tag behind. Other branches and other tags are never pushed.
+// The objects pushed are the exact hashes that were scanned.
 import { execFileSync } from "node:child_process";
-import { resolve } from "node:path";
-import { fileURLToPath } from "node:url";
-import { scanRepo, loadDenylistFor } from "./identity-scan.mjs";
+import { scanRepo, loadDenylistFor, gitEnv, isMain, parseArgs } from "./identity-scan.mjs";
 
-const git = (root, args) => execFileSync("git", ["-C", root, ...args], { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"], windowsHide: true });
+const git = (root, args) => execFileSync("git", ["-C", root, ...args], { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"], windowsHide: true, env: gitEnv() });
 const ok = (root, args) => {
   try {
     git(root, args);
@@ -21,13 +21,14 @@ const ok = (root, args) => {
 };
 
 function main(argv) {
-  const val = (flag) => {
-    const i = argv.indexOf(flag);
-    return i >= 0 ? argv[i + 1] : undefined;
-  };
-  const dry = argv.includes("--dry-run");
-  const remote = val("--remote");
-  const tag = val("--tag");
+  const vals = parseArgs(argv, { "--remote": true, "--tag": true, "--dry-run": false });
+  if (!vals) {
+    console.error("usage: release-push --remote <url> --tag <tag> [--dry-run]");
+    return 5;
+  }
+  const dry = vals["--dry-run"] === true;
+  const remote = vals["--remote"];
+  const tag = vals["--tag"];
 
   let root;
   try {
@@ -41,8 +42,12 @@ function main(argv) {
     console.error("--remote <url> is required and must not start with -");
     return 5;
   }
-  if (!tag || tag.startsWith("-") || !ok(root, ["check-ref-format", `refs/tags/${tag}`])) {
-    console.error("tag is missing or not a valid tag name");
+  if (!tag) {
+    console.error("--tag <tag> is required");
+    return 3;
+  }
+  if (tag.startsWith("-") || !ok(root, ["check-ref-format", `refs/tags/${tag}`])) {
+    console.error("tag is not a valid tag name");
     return 3;
   }
 
@@ -87,6 +92,11 @@ function main(argv) {
     console.error("scan failed: refusing to release");
     return 3;
   }
+  const { skipped } = hits.stats;
+  if (skipped.length) {
+    console.log(`${skipped.length} binary blob(s) could not be read as text and were scanned best-effort only:`);
+    for (const h of skipped) console.log(`  ${h}`);
+  }
   if (hits.length) {
     for (const h of hits) console.log(h);
     console.log(`${hits.length} hit(s): not pushing`);
@@ -98,8 +108,10 @@ function main(argv) {
     return 0;
   }
 
+  // push the hashes that were scanned, not names that could move in between
+  const [mainRef, tagRef] = hits.resolved;
   try {
-    git(root, ["push", "--atomic", remote, "refs/heads/main:refs/heads/main", `refs/tags/${tag}:refs/tags/${tag}`]);
+    git(root, ["push", "--atomic", "--no-follow-tags", "--", remote, `${mainRef.hash}:refs/heads/main`, `${tagRef.hash}:refs/tags/${tag}`]);
   } catch {
     console.error("push refused by the remote or failed; nothing was forced");
     return 4;
@@ -108,6 +120,6 @@ function main(argv) {
   return 0;
 }
 
-if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+if (isMain(import.meta.url)) {
   process.exitCode = main(process.argv.slice(2));
 }

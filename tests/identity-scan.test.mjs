@@ -1,9 +1,10 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { writeFileSync, mkdirSync } from "node:fs";
+import { writeFileSync, mkdirSync, rmSync, symlinkSync } from "node:fs";
+import { spawnSync } from "node:child_process";
 import { join } from "node:path";
-import { loadDenylist, scanRepo } from "../tools/identity-scan.mjs";
-import { TERM, DENY, git, mkrepo, commit, run } from "./helpers.mjs";
+import { loadDenylist, scanRepo, parseObjects } from "../tools/identity-scan.mjs";
+import { TOOLS, TERM, DENY, git, mkdir, mkrepo, commit, run, craft } from "./helpers.mjs";
 
 const re = () => loadDenylist(DENY, null);
 const scan = (dir, refs = ["main"]) => scanRepo(dir, refs, re());
@@ -102,17 +103,6 @@ test("clean repo gives no hits", () => {
   git(d, ["tag", "-a", "-m", "fine", "v1"]);
   assert.deepEqual(scan(d, ["main", "v1"]), []);
   assert.equal(cli(d, ["--release", "--refs", "main,v1"]).code, 0);
-});
-
-test("binary blobs are skipped and counted", () => {
-  const d = mkrepo();
-  writeFileSync(join(d, "b.bin"), Buffer.concat([Buffer.from([0, 1, 2]), Buffer.from(TERM)]));
-  git(d, ["add", "-A"]);
-  git(d, ["commit", "-q", "-m", "bin"]);
-  assert.deepEqual(scan(d), []);
-  const r = cli(d);
-  assert.equal(r.code, 0);
-  assert.match(r.out, /1 binary/);
 });
 
 test("output never holds the term, in any form", () => {
@@ -222,4 +212,202 @@ test("loadDenylist: line limit works at the start of every line", () => {
   const d = loadDenylist("^fixture-a", null);
   assert.equal(d.test("first\nfixture-a second"), true);
   assert.equal(d.test("first\nxfixture-a"), false);
+});
+
+const OPAQUE = Buffer.from(Array.from({ length: 256 }, (_, i) => i));
+
+test("blob with NUL bytes is still scanned (NUL-stripped), not skipped", () => {
+  const d = mkrepo();
+  commit(d, { "b.bin": Buffer.concat([Buffer.from([0, 1, 2]), Buffer.from(`${TERM}\n`)]) });
+  assert.deepEqual(scan(d), ["b.bin:1"]);
+  commit(d, { "c.txt": Buffer.from(`x\0\n${TERM}\n`) });
+  assert.deepEqual(scan(d).sort(), ["b.bin:1", "c.txt:2"]);
+});
+
+test("NUL after the first 8000 bytes does not hide text", () => {
+  const d = mkrepo();
+  commit(d, { "a.md": Buffer.from("y".repeat(9000) + `\0\n${TERM}\n`) });
+  assert.deepEqual(scan(d), ["a.md:2"]);
+});
+
+test("UTF-16 text is decoded and scanned: LE and BE with BOM, LE without", () => {
+  const d = mkrepo();
+  const le = Buffer.from(`ok\r\nhas ${TERM} here\r\n`, "utf16le");
+  commit(d, {
+    "le.txt": Buffer.concat([Buffer.from([0xff, 0xfe]), le]),
+    "be.txt": Buffer.concat([Buffer.from([0xfe, 0xff]), Buffer.from(le).swap16()]),
+    "nobom.txt": le,
+  });
+  assert.deepEqual(scan(d).sort(), ["be.txt:2", "le.txt:2", "nobom.txt:2"]);
+  assert.equal(scanRepo(d, ["main"], re()).stats.skipped.length, 0);
+});
+
+test("opaque binary blobs are skipped, listed by hash and counted", () => {
+  const d = mkrepo();
+  commit(d, { "o.bin": OPAQUE });
+  const h = git(d, ["rev-parse", "HEAD:o.bin"]).trim();
+  const hits = scan(d);
+  assert.deepEqual(hits, []);
+  assert.deepEqual(hits.stats.skipped, [h]);
+  const r = cli(d);
+  assert.equal(r.code, 0);
+  assert.match(r.out, /1 binary/);
+});
+
+test("replace refs cannot change what is scanned", () => {
+  const d = mkrepo();
+  commit(d, { "a.txt": `${TERM}\n` });
+  const dirty = git(d, ["rev-parse", "HEAD:a.txt"]).trim();
+  const clean = git(d, ["hash-object", "-w", "--stdin"], {}, "clean\n").trim();
+  git(d, ["replace", dirty, clean]);
+  assert.deepEqual(scan(d), ["a.txt:1"]);
+  assert.equal(cli(d, ["--release", "--refs", "main"]).code, 1);
+});
+
+const ID = "fixture-user <fixture-user@example.invalid> 1700000000 +0000";
+function crafted(d, extraHeaders, body = "clean\n", { idLine = ID, parent = false } = {}) {
+  const tree = git(d, ["rev-parse", "HEAD^{tree}"]).trim();
+  const h = git(d, ["rev-parse", "HEAD"]).trim();
+  const text = `tree ${tree}\n${parent ? `parent ${h}\n` : ""}author ${idLine}\ncommitter ${ID}\n${extraHeaders}\n${body}`;
+  const c = craft(d, "commit", text);
+  git(d, ["update-ref", "refs/heads/main", c]);
+  return c;
+}
+
+test("headers: term in a mergetag block is a hit", () => {
+  const d = mkrepo();
+  const h = commit(d, { "a.txt": "x\n" });
+  const c = crafted(d, `mergetag object ${h}\n type commit\n tag v9\n tagger ${TERM} <x@example.invalid> 1700000000 +0000\n \n note\n`);
+  assert.deepEqual(scan(d), [`${short(c)}:header`]);
+});
+
+test("headers: unknown extra header is scanned", () => {
+  const d = mkrepo();
+  commit(d, { "a.txt": "x\n" });
+  const c = crafted(d, `x-extra ${TERM}\n`);
+  assert.deepEqual(scan(d), [`${short(c)}:header`]);
+});
+
+test("headers: gpgsig block is the only thing skipped", () => {
+  const d = mkrepo();
+  commit(d, { "a.txt": "x\n" });
+  const c = crafted(d, "gpgsig -----BEGIN PGP SIGNATURE-----\n \n abcdef\n -----END PGP SIGNATURE-----\n");
+  assert.deepEqual(scan(d), []);
+  assert.ok(c);
+});
+
+test("headers: CR or U+2028 in an author name still reaches the name check", () => {
+  for (const sep of ["\r", " "]) {
+    const d = mkrepo();
+    commit(d, { "a.txt": "x\n" });
+    const c = crafted(d, "", "clean\n", { idLine: `A${sep}${TERM} <fixture-user@example.invalid> 1700000000 +0000` });
+    assert.deepEqual(scan(d), [`${short(c)}:author-name`]);
+  }
+});
+
+test("headers: an ident line without timezone is a hit, whatever it holds", () => {
+  const d = mkrepo();
+  commit(d, { "a.txt": "x\n" });
+  const c = crafted(d, "", "clean\n", { idLine: `${TERM} <${TERM}@example.invalid> 1700000000` });
+  assert.deepEqual(scan(d), [`${short(c)}:author-unparsed`]);
+  const d2 = mkrepo();
+  const h = commit(d2, { "a.txt": "x\n" });
+  const t = craft(d2, "tag", `object ${h}\ntype commit\ntag v1\ntagger fixture-user <fixture-user@example.invalid> 1700000000\n\nclean\n`);
+  git(d2, ["update-ref", "refs/tags/v1", t]);
+  assert.deepEqual(scan(d2, ["main", "refs/tags/v1"]), [`tag:${short(t)}:tagger-unparsed`]);
+});
+
+test("denylist that is not plain text fails closed (NUL, U+FFFD, BOM, inline comment)", () => {
+  for (const bad of ["a\0b", "fixture-a�", "﻿fixture-a", "fixture-a # note", "fixture-a\t#note"]) {
+    assert.throws(() => loadDenylist(bad, null), /invalid|plain/, JSON.stringify(bad));
+  }
+  assert.equal(loadDenylist("fixture-a#b", null).test("fixture-a#b"), true);
+});
+
+test("UTF-16 .denylist file exits 2 and does not release", () => {
+  const d = mkrepo();
+  commit(d, { "a.txt": `${TERM}\n` });
+  writeFileSync(join(d, ".denylist"), Buffer.concat([Buffer.from([0xff, 0xfe]), Buffer.from(`# c\r\n${DENY}\r\n`, "utf16le")]));
+  const r = run("identity-scan.mjs", ["--release"], { cwd: d });
+  assert.equal(r.code, 2);
+  assert.ok(!r.all.includes(TERM));
+  assert.equal(run("identity-scan.mjs", [], { cwd: d }).code, 2);
+});
+
+test("terms that fail only when joined or use backreferences exit 2 without the pattern", () => {
+  const d = mkrepo();
+  commit(d, { "a.txt": "x\n" });
+  for (const list of ["(fixture-a)\\1", "(?<n>fixture-a)\\k<n>"]) {
+    const r = cli(d, ["--release"], list);
+    assert.equal(r.code, 2, list);
+    assert.ok(!r.all.includes("fixture"), r.all);
+  }
+  assert.throws(() => loadDenylist("fixture-a\n(fixture-b)\\1", null), (e) => !e.message.includes("fixture"));
+});
+
+test("unknown, repeated or incomplete arguments exit 5 before anything else", () => {
+  const d = mkrepo();
+  commit(d, { "a.txt": `${TERM}\n` });
+  for (const args of [["--relase"], ["--release", "--release"], ["--refs"], ["stray"], ["--repo"], ["--refs", "main", "--refs", "main"]]) {
+    assert.equal(cli(d, args).code, 5, args.join(" "));
+  }
+});
+
+test("runs through a symlink or junction, not a silent exit 0", () => {
+  const d = mkrepo();
+  commit(d, { "a.txt": `${TERM}\n` });
+  const link = join(mkdir(), "toolslink");
+  try {
+    symlinkSync(TOOLS, link, "junction");
+  } catch {
+    return; // platform without symlink rights
+  }
+  const e = { ...process.env, IDENTITY_DENYLIST: DENY };
+  const r = spawnSync(process.execPath, [join(link, "identity-scan.mjs"), "--release", "--refs", "main"], { cwd: d, env: e, encoding: "utf8" });
+  assert.equal(r.status, 1, r.stdout + r.stderr);
+});
+
+test("a tag and a branch sharing a name do not break the default refs", () => {
+  const d = mkrepo();
+  commit(d, { "a.txt": "x\n" });
+  git(d, ["tag", "samename"]);
+  git(d, ["branch", "samename"]);
+  const r = cli(d);
+  assert.equal(r.code, 0, r.all);
+  assert.match(r.out, /1 tags/);
+});
+
+test("git stderr is not echoed (a broken tag ref does not print its name)", () => {
+  const d = mkrepo();
+  commit(d, { "a.txt": "x\n" });
+  writeFileSync(join(d, ".git", "refs", "tags", `${TERM}-x`), "garbage\n");
+  const r = cli(d);
+  assert.ok(!r.all.toLowerCase().includes(TERM), r.all);
+});
+
+function objFile(d, hash) {
+  return join(d, ".git", "objects", hash.slice(0, 2), hash.slice(2));
+}
+
+test("parseObjects throws when git reports a missing object", () => {
+  assert.throws(() => parseObjects(Buffer.from("0123456789abcdef0123456789abcdef01234567 missing\n")), /object missing/);
+  assert.equal(parseObjects(Buffer.from("0123456789abcdef0123456789abcdef01234567 blob 3\nabc\n")).length, 1);
+});
+
+test("corrupt repo: a missing blob exits 3", () => {
+  const d = mkrepo();
+  commit(d, { "a.txt": "clean\n" });
+  rmSync(objFile(d, git(d, ["rev-parse", "HEAD:a.txt"]).trim()));
+  const r = cli(d, ["--release", "--refs", "main"]);
+  assert.equal(r.code, 3);
+  assert.throws(() => scan(d));
+});
+
+test("corrupt repo: a missing tree (rev-list fails) exits 3, never a clean pass", () => {
+  const d = mkrepo();
+  commit(d, { "a.txt": `${TERM}\n` });
+  rmSync(objFile(d, git(d, ["rev-parse", "HEAD^{tree}"]).trim()));
+  const r = cli(d, ["--release", "--refs", "main"]);
+  assert.equal(r.code, 3, r.all);
+  assert.throws(() => scan(d));
 });

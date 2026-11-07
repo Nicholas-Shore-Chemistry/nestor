@@ -1,8 +1,9 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync, writeFileSync } from "node:fs";
+import { readFileSync, writeFileSync, rmSync, symlinkSync } from "node:fs";
+import { spawnSync } from "node:child_process";
 import { join } from "node:path";
-import { TOOLS, TERM, DENY, git, mkrepo, mkbare, commit, run } from "./helpers.mjs";
+import { TOOLS, TERM, DENY, git, mkdir, mkrepo, mkbare, commit, run } from "./helpers.mjs";
 
 const push = (dir, remote, args, denylist = DENY) => run("release-push.mjs", ["--remote", remote, ...args], { cwd: dir, denylist });
 const refs = (bare) => git(bare, ["for-each-ref", "--format=%(refname) %(objectname)"]).trim();
@@ -86,19 +87,9 @@ test("tag not on main", () => {
   assert.equal(refs(bare), "");
 });
 
-test("missing tag", () => {
+test("no --tag at all exits 3", () => {
   const { repo, bare } = setup();
-  assert.equal(push(repo, bare, ["--tag", "v9"]).code, 3);
   assert.equal(push(repo, bare, []).code, 3);
-  assert.equal(refs(bare), "");
-});
-
-test("tag names that start with - or are not valid refs exit 3", () => {
-  const { repo, bare } = setup();
-  for (const bad of ["-v1", "--force", "a..b", "a b", "a:b", "v1.lock", "@", "a~1"]) {
-    const r = push(repo, bare, ["--tag", bad]);
-    assert.equal(r.code, 3, `tag ${bad}`);
-  }
   assert.equal(refs(bare), "");
 });
 
@@ -147,4 +138,157 @@ test("tool source has no forced or mirrored push and no shell", () => {
   const src = readFileSync(join(TOOLS, "release-push.mjs"), "utf8") + readFileSync(join(TOOLS, "identity-scan.mjs"), "utf8");
   assert.doesNotMatch(src, /--force|--mirror|--no-verify|\+refs|shell:\s*true|execSync|child_process\.exec\(/);
   assert.match(readFileSync(join(TOOLS, "release-push.mjs"), "utf8"), /--atomic/);
+  assert.match(readFileSync(join(TOOLS, "release-push.mjs"), "utf8"), /--no-follow-tags/);
+});
+
+test("push.followTags does not smuggle an extra annotated tag", () => {
+  const { repo, bare } = setup();
+  git(repo, ["tag", "-a", "-m", `private ${TERM}`, "old-private"]);
+  git(repo, ["tag", "-a", "-m", "release", "v1"]);
+  git(repo, ["config", "push.followTags", "true"]);
+  const r = push(repo, bare, ["--tag", "v1"]);
+  assert.equal(r.code, 0, r.all);
+  assert.deepEqual(refs(bare).split("\n").map((l) => l.split(" ")[0]).sort(), ["refs/heads/main", "refs/tags/v1"]);
+});
+
+test("replace refs cannot hide a hit from the release scan", () => {
+  const { repo, bare } = setup({ "a.txt": `${TERM}\n` });
+  const dirty = git(repo, ["rev-parse", "HEAD:a.txt"]).trim();
+  const clean = git(repo, ["hash-object", "-w", "--stdin"], {}, "clean\n").trim();
+  git(repo, ["replace", dirty, clean]);
+  git(repo, ["tag", "v1"]);
+  assert.equal(push(repo, bare, ["--tag", "v1"]).code, 1);
+  assert.equal(refs(bare), "");
+});
+
+test("pushes the scanned hashes, not ref names", () => {
+  const { repo, bare, head } = setup();
+  git(repo, ["tag", "-a", "-m", "release", "v1"]);
+  const tagObj = git(repo, ["rev-parse", "refs/tags/v1"]).trim();
+  const log = join(mkdir(), "pre-push.log");
+  const hook = join(repo, ".git", "hooks", "pre-push");
+  writeFileSync(hook, `#!/bin/sh\ncat >> "${log.replaceAll("\\", "/")}"\n`, { mode: 0o755 });
+  const r = push(repo, bare, ["--tag", "v1"]);
+  assert.equal(r.code, 0, r.all);
+  const lines = readFileSync(log, "utf8").trim().split("\n").map((l) => l.split(" "));
+  assert.deepEqual(lines.map((l) => l[0]).sort(), [head, tagObj].sort());
+  assert.deepEqual(lines.map((l) => l[2]).sort(), ["refs/heads/main", "refs/tags/v1"]);
+});
+
+test("runs through a symlink or junction, not a silent exit 0", () => {
+  const { repo, bare } = setup({ "a.txt": `${TERM}\n` });
+  git(repo, ["tag", "v1"]);
+  const link = join(mkdir(), "toolslink");
+  try {
+    symlinkSync(TOOLS, link, "junction");
+  } catch {
+    return;
+  }
+  const e = { ...process.env, IDENTITY_DENYLIST: DENY };
+  const r = spawnSync(process.execPath, [join(link, "release-push.mjs"), "--remote", bare, "--tag", "v1"], { cwd: repo, env: e, encoding: "utf8" });
+  assert.equal(r.status, 1, r.stdout + r.stderr);
+  assert.equal(refs(bare), "");
+});
+
+test("unknown or repeated arguments exit 5 and push nothing", () => {
+  const { repo, bare } = setup();
+  git(repo, ["tag", "v1"]);
+  for (const extra of [["--dryrun"], ["--dry-run", "--dry-run"], ["stray"], ["--tag", "v1"], ["--force"]]) {
+    const r = push(repo, bare, ["--tag", "v1", ...extra]);
+    assert.equal(r.code, 5, extra.join(" "));
+  }
+  assert.equal(refs(bare), "");
+});
+
+test("a remote starting with - is refused with exit 5 and the message", () => {
+  const { repo, bare } = setup();
+  git(repo, ["tag", "v1"]);
+  const r = run("release-push.mjs", ["--remote", "--mirror=x", "--tag", "v1"], { cwd: repo, denylist: DENY });
+  assert.equal(r.code, 5);
+  assert.match(r.err, /must not start with -/);
+  assert.equal(refs(bare), "");
+});
+
+test("invalid tag names are told apart from missing tags", () => {
+  const { repo, bare } = setup();
+  git(repo, ["tag", "v1"]);
+  for (const bad of ["-v1", "--force", "a..b", "a b", "a:b", "v1.lock", "a~1"]) {
+    const r = push(repo, bare, ["--tag", bad]);
+    assert.equal(r.code, 3, `tag ${bad}`);
+    assert.match(r.err, /not a valid tag name/, `tag ${bad}`);
+  }
+  const m = push(repo, bare, ["--tag", "v9"]);
+  assert.equal(m.code, 3);
+  assert.match(m.err, /tag does not exist/);
+  assert.equal(refs(bare), "");
+});
+
+test("a real tag named with a leading dash is still refused", () => {
+  const { repo, bare } = setup();
+  git(repo, ["update-ref", "refs/tags/-v1", "HEAD"]);
+  const r = push(repo, bare, ["--tag", "-v1"]);
+  assert.equal(r.code, 3);
+  assert.match(r.err, /not a valid tag name/);
+  assert.equal(refs(bare), "");
+});
+
+test("skipped binary blobs are printed by hash and count", () => {
+  const { repo, bare } = setup({ "o.bin": Buffer.from(Array.from({ length: 256 }, (_, i) => i)) });
+  git(repo, ["tag", "v1"]);
+  const h = git(repo, ["rev-parse", "HEAD:o.bin"]).trim();
+  const r = push(repo, bare, ["--tag", "v1", "--dry-run"]);
+  assert.equal(r.code, 0, r.all);
+  assert.match(r.out, /1 binary blob/);
+  assert.ok(r.out.includes(h));
+});
+
+test("a scan that crashes (corrupt repo) blocks the push with exit 3", () => {
+  const { repo, bare } = setup({ "a.txt": "clean\n" });
+  git(repo, ["tag", "v1"]);
+  const bh = git(repo, ["rev-parse", "HEAD:a.txt"]).trim();
+  rmSync(join(repo, ".git", "objects", bh.slice(0, 2), bh.slice(2)));
+  const r = push(repo, bare, ["--tag", "v1"]);
+  assert.equal(r.code, 3, r.all);
+  assert.match(r.err, /scan failed/);
+  assert.equal(refs(bare), "");
+});
+
+test("a scan that cannot list objects (missing tree) blocks the push with exit 3", () => {
+  const { repo, bare } = setup({ "a.txt": `${TERM}\n` });
+  git(repo, ["tag", "v1"]);
+  const th = git(repo, ["rev-parse", "HEAD^{tree}"]).trim();
+  rmSync(join(repo, ".git", "objects", th.slice(0, 2), th.slice(2)));
+  const r = push(repo, bare, ["--tag", "v1"]);
+  assert.equal(r.code, 3, r.all);
+  assert.equal(refs(bare), "");
+});
+
+test("release.yml validates the tag in shell and treats only a literal false as a real push", () => {
+  const yml = readFileSync(join(TOOLS, "..", ".github", "workflows", "release.yml"), "utf8");
+  const m = /- name: Check tag and mode\r?\n(?:\s+env:[\s\S]*?)?\s+run: \|\r?\n([\s\S]*?)\r?\n      - name:/.exec(yml);
+  assert.ok(m, "check step present");
+  const script = m[1].replace(/^ {10}/gm, "");
+  const sh = (env) => spawnSync("bash", ["-c", `GITHUB_ENV=$(mktemp)\n${script}\ncat "$GITHUB_ENV"`], { env: { ...process.env, ...env }, encoding: "utf8" });
+  const real = { EVENT: "push", DRY_RUN_INPUT: "" };
+  assert.equal(sh({ ...real, TAG: "nestor--v1.2.3" }).status, 0);
+  assert.match(sh({ ...real, TAG: "nestor--v1.2.3" }).stdout, /DRY_RUN=false/);
+  for (const tag of ["nestor--v1.2.3-dryrun", "v1.2.3", "nestor--v1;x", "nestor--v1 2", "../x", "--force", ""]) {
+    assert.notEqual(sh({ ...real, TAG: tag }).status, 0, `real push, tag ${tag}`);
+  }
+  for (const input of ["true", "", "False", "0", "yes"]) {
+    const r = sh({ EVENT: "workflow_dispatch", DRY_RUN_INPUT: input, TAG: "nestor--v1.2.3-dryrun" });
+    assert.equal(r.status, 0, `dispatch ${input}`);
+    assert.match(r.stdout, /DRY_RUN=true/, `dispatch ${input}`);
+  }
+  const f = sh({ EVENT: "workflow_dispatch", DRY_RUN_INPUT: "false", TAG: "nestor--v1.2.3" });
+  assert.match(f.stdout, /DRY_RUN=false/);
+  assert.notEqual(sh({ EVENT: "workflow_dispatch", DRY_RUN_INPUT: "false", TAG: "nestor--v1.2.3-dryrun" }).status, 0);
+});
+
+test("ci.yml enforces --release when SCAN_ENFORCE is true", () => {
+  const yml = readFileSync(join(TOOLS, "..", ".github", "workflows", "ci.yml"), "utf8");
+  assert.match(yml, /SCAN_ENFORCE: \$\{\{ vars\.SCAN_ENFORCE \}\}/);
+  assert.match(yml, /= "true" \]; then\s+node tools\/identity-scan\.mjs --release --refs HEAD\s+else\s+node tools\/identity-scan\.mjs --refs HEAD/);
+  const rel = readFileSync(join(TOOLS, "..", ".github", "workflows", "release.yml"), "utf8");
+  assert.match(rel, /GlobalKnownHostsFile=\/dev\/null/);
 });

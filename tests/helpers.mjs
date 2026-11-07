@@ -8,11 +8,12 @@ export const TOOLS = join(dirname(fileURLToPath(import.meta.url)), "..", "tools"
 export const TERM = "fixture-secret";
 export const DENY = `(^|[^a-z])${TERM}([^a-z]|$)`;
 
-export function git(dir, args, env = {}) {
+export function git(dir, args, env = {}, input) {
   return execFileSync("git", ["-C", dir, ...args], {
+    input,
     env: { ...process.env, ...env },
     encoding: "utf8",
-    stdio: ["ignore", "pipe", "pipe"],
+    stdio: [input === undefined ? "ignore" : "pipe", "pipe", "pipe"],
   });
 }
 
@@ -31,6 +32,11 @@ export function mkrepo() {
     ["core.autocrlf", "false"],
   ]) git(dir, ["config", k, v]);
   return dir;
+}
+
+/** Writes a raw object without validation (hash-object --literally) and returns its hash. */
+export function craft(dir, type, body) {
+  return git(dir, ["hash-object", "-t", type, "-w", "--stdin", "--literally"], {}, body).trim();
 }
 
 export function mkbare() {

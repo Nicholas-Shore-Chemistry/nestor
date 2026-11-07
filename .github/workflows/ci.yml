@@ -48,4 +48,10 @@ jobs:
         continue-on-error: ${{ vars.SCAN_ENFORCE != 'true' }}
         env:
           IDENTITY_DENYLIST: ${{ secrets.IDENTITY_DENYLIST }}
-        run: node tools/identity-scan.mjs --refs HEAD
+          SCAN_ENFORCE: ${{ vars.SCAN_ENFORCE }}
+        run: |
+          if [ "$SCAN_ENFORCE" = "true" ]; then
+            node tools/identity-scan.mjs --release --refs HEAD
+          else
+            node tools/identity-scan.mjs --refs HEAD
+          fi
