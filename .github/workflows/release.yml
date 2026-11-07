@@ -56,7 +56,7 @@ jobs:
         with:
           node-version: 22
       - name: Require deploy key
-        if: env.DRY_RUN != 'true'
+        if: env.DRY_RUN == 'false'
         env:
           PUBLIC_DEPLOY_KEY: ${{ secrets.PUBLIC_DEPLOY_KEY }}
         run: |
@@ -65,7 +65,7 @@ jobs:
             exit 1
           fi
       - name: Set up SSH
-        if: env.DRY_RUN != 'true'
+        if: env.DRY_RUN == 'false'
         env:
           PUBLIC_DEPLOY_KEY: ${{ secrets.PUBLIC_DEPLOY_KEY }}
           GH_TOKEN: ${{ github.token }}
@@ -85,7 +85,7 @@ jobs:
         env:
           IDENTITY_DENYLIST: ${{ secrets.IDENTITY_DENYLIST }}
         run: |
-          if [ "$DRY_RUN" = "true" ]; then
+          if [ "$DRY_RUN" != "false" ]; then
             node tools/release-push.mjs --remote "$PUBLIC_REMOTE" --tag "$TAG" --dry-run
           else
             node tools/release-push.mjs --remote "$PUBLIC_REMOTE" --tag "$TAG"

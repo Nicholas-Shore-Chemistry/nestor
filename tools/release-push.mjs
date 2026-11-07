@@ -68,10 +68,6 @@ function main(argv) {
     console.error("tag does not exist");
     return 3;
   }
-  if (!ok(root, ["merge-base", "--is-ancestor", tagCommit, mainHash])) {
-    console.error("tag is not on main");
-    return 3;
-  }
 
   let deny;
   try {
@@ -103,13 +99,20 @@ function main(argv) {
     return 1;
   }
 
+  // the ancestor check runs on the hashes the scan resolved, so it cannot disagree with what is pushed
+  const [mainRef, tagRef] = hits.resolved;
+  const scannedTagCommit = refOf(`${tagRef.hash}^{commit}`);
+  if (!scannedTagCommit || !ok(root, ["merge-base", "--is-ancestor", scannedTagCommit, mainRef.hash])) {
+    console.error("tag is not on main");
+    return 3;
+  }
+
   if (dry) {
     console.log("DRY RUN CLEAN");
     return 0;
   }
 
   // push the hashes that were scanned, not names that could move in between
-  const [mainRef, tagRef] = hits.resolved;
   try {
     git(root, ["push", "--atomic", "--no-follow-tags", "--", remote, `${mainRef.hash}:refs/heads/main`, `${tagRef.hash}:refs/tags/${tag}`]);
   } catch {

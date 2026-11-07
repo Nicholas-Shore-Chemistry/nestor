@@ -203,7 +203,7 @@ test("unknown or repeated arguments exit 5 and push nothing", () => {
 test("a remote starting with - is refused with exit 5 and the message", () => {
   const { repo, bare } = setup();
   git(repo, ["tag", "v1"]);
-  const r = run("release-push.mjs", ["--remote", "--mirror=x", "--tag", "v1"], { cwd: repo, denylist: DENY });
+  const r = run("release-push.mjs", ["--remote", "-x", "--tag", "v1"], { cwd: repo, denylist: DENY });
   assert.equal(r.code, 5);
   assert.match(r.err, /must not start with -/);
   assert.equal(refs(bare), "");
@@ -212,7 +212,7 @@ test("a remote starting with - is refused with exit 5 and the message", () => {
 test("invalid tag names are told apart from missing tags", () => {
   const { repo, bare } = setup();
   git(repo, ["tag", "v1"]);
-  for (const bad of ["-v1", "--force", "a..b", "a b", "a:b", "v1.lock", "a~1"]) {
+  for (const bad of ["-v1", "a..b", "a b", "a:b", "v1.lock", "a~1"]) {
     const r = push(repo, bare, ["--tag", bad]);
     assert.equal(r.code, 3, `tag ${bad}`);
     assert.match(r.err, /not a valid tag name/, `tag ${bad}`);
@@ -292,4 +292,45 @@ test("ci.yml enforces --release when SCAN_ENFORCE is true", () => {
   assert.match(yml, /= "true" \]; then\s+node tools\/identity-scan\.mjs --release --refs HEAD\s+else\s+node tools\/identity-scan\.mjs --refs HEAD/);
   const rel = readFileSync(join(TOOLS, "..", ".github", "workflows", "release.yml"), "utf8");
   assert.match(rel, /GlobalKnownHostsFile=\/dev\/null/);
+});
+
+// ---- round 2 ----
+test("git stderr is not inherited: a term in a git error never reaches the output", () => {
+  const { repo } = setup();
+  git(repo, ["tag", "v1"]);
+  const bad = join(mkdir(), `${TERM}-missing`);
+  const r = push(repo, bad, ["--tag", "v1"]);
+  assert.equal(r.code, 4, r.all);
+  assert.ok(!r.all.toLowerCase().includes(TERM), r.all);
+});
+
+test("the ancestor check runs on the scanned hashes, after the scan: a tag off main with a hit exits 1, clean exits 3", () => {
+  const { repo, bare } = setup();
+  git(repo, ["checkout", "-q", "-b", "side"]);
+  commit(repo, { "b.txt": "side\n" });
+  git(repo, ["tag", "v1"]);
+  git(repo, ["checkout", "-q", "main"]);
+  const r = push(repo, bare, ["--tag", "v1"]);
+  assert.equal(r.code, 3, r.all);
+  assert.equal(refs(bare), "");
+});
+
+test("release.yml: anything but a literal false falls back to a dry run", () => {
+  const yml = readFileSync(join(TOOLS, "..", ".github", "workflows", "release.yml"), "utf8");
+  assert.ok(!/DRY_RUN != 'true'/.test(yml), "no negative test on true");
+  assert.equal((yml.match(/if: env\.DRY_RUN == 'false'/g) || []).length, 2);
+  const m = /- name: Release push\r?\n(?:\s+env:[\s\S]*?)?\s+run: \|\r?\n([\s\S]*?)\r?\n      - name:/.exec(yml);
+  assert.ok(m);
+  const script = m[1].replace(/^ {10}/gm, "");
+  const run1 = (v) => spawnSync("bash", ["-c", `node() { echo "node $*"; }\n${script}`], { env: { ...process.env, DRY_RUN: v, PUBLIC_REMOTE: "r", TAG: "t" }, encoding: "utf8" }).stdout;
+  for (const v of ["true", "", "TRUE", "1", "False", "yes"]) assert.match(run1(v), /--dry-run/, `DRY_RUN=${v}`);
+  assert.doesNotMatch(run1("false"), /--dry-run/);
+});
+
+test("an option value starting with -- is a usage error", () => {
+  const { repo, bare } = setup();
+  git(repo, ["tag", "v1"]);
+  for (const args of [["--tag", "--force"], ["--tag", "--dry-run"]]) assert.equal(push(repo, bare, args).code, 5, args.join(" "));
+  assert.equal(run("release-push.mjs", ["--remote", "--mirror=x", "--tag", "v1"], { cwd: repo, denylist: DENY }).code, 5);
+  assert.equal(refs(bare), "");
 });

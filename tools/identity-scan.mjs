@@ -72,41 +72,57 @@ export function parseArgs(argv, spec) {
     const f = argv[i];
     if (!Object.hasOwn(spec, f) || Object.hasOwn(vals, f)) return null;
     if (spec[f]) {
-      if (argv[i + 1] === undefined) return null;
+      if (argv[i + 1] === undefined || argv[i + 1].startsWith("--")) return null;
       vals[f] = argv[++i];
     } else vals[f] = true;
   }
   return vals;
 }
 
-/** Text views of a blob that contains NUL bytes: UTF-16 (BOM or NUL pattern) plus NUL-stripped readings. */
-function nulBlobTexts(b) {
-  const texts = [];
-  let wide = false;
-  const swapped = () => Buffer.from(b.subarray(0, b.length - (b.length % 2))).swap16();
-  if (b.length >= 2 && b[0] === 0xff && b[1] === 0xfe) {
-    texts.push(b.subarray(2).toString("utf16le"));
-    wide = true;
-  } else if (b.length >= 2 && b[0] === 0xfe && b[1] === 0xff) {
-    texts.push(swapped().subarray(2).toString("utf16le"));
-    wide = true;
-  } else {
-    let even = 0;
-    let odd = 0;
-    for (let i = 0; i < b.length; i++) if (b[i] === 0) (i % 2 ? odd++ : even++);
-    const pairs = Math.max(1, b.length >> 1);
-    if (odd / pairs >= 0.25 && odd > even) {
-      texts.push(b.toString("utf16le"));
-      wide = true;
-    } else if (even / pairs >= 0.25 && even > odd) {
-      texts.push(swapped().toString("utf16le"));
-      wide = true;
-    }
-  }
-  const stripped = Buffer.from(b.filter((x) => x !== 0));
-  texts.push(stripped.toString("latin1"), stripped.toString("utf8"));
-  return { texts, wide };
+/** True when a BOM or a strong NUL pattern says the buffer is UTF-16 text (otherwise it counts as binary). */
+export function looksWide(b) {
+  if (b.length >= 2 && ((b[0] === 0xff && b[1] === 0xfe) || (b[0] === 0xfe && b[1] === 0xff))) return true;
+  let even = 0;
+  let odd = 0;
+  for (let i = 0; i < b.length; i++) if (b[i] === 0) (i % 2 ? odd++ : even++);
+  const pairs = Math.max(1, b.length >> 1);
+  return (odd / pairs >= 0.4 && odd >= 4 * even) || (even / pairs >= 0.4 && even >= 4 * odd);
 }
+
+/**
+ * The one place that turns bytes into text. Returns every reading as an array of lines (line numbers follow the
+ * bytes' own newlines wherever the encoding allows), and a hit in any reading is a hit.
+ * No NUL: utf8 and latin1. Any NUL: latin1 and utf8 with each NUL turned into a newline (word limits stay intact),
+ * the NUL-stripped text, and the UTF-16 LE and BE decodes (always both).
+ * @param {Buffer} b
+ * @returns {string[][]}
+ */
+export function readings(b) {
+  if (!b.includes(0)) return [b.toString("utf8").split("\n"), b.toString("latin1").split("\n")];
+  const rawLines = [];
+  let p = 0;
+  for (;;) {
+    const nl = b.indexOf(10, p);
+    rawLines.push(b.subarray(p, nl < 0 ? b.length : nl));
+    if (nl < 0) break;
+    p = nl + 1;
+  }
+  const nulToNl = (enc) => rawLines.map((l) => l.toString(enc).replace(/\0/g, "\n"));
+  const stripped = rawLines.map((l) => Buffer.from(l.filter((x) => x !== 0)).toString("utf8"));
+  const even = b.subarray(0, b.length - (b.length % 2));
+  const wide = (buf) => buf.toString("utf16le").replace(/^﻿/, "").split("\n");
+  return [nulToNl("latin1"), nulToNl("utf8"), stripped, wide(even), wide(Buffer.from(even).swap16())];
+}
+
+/** Line numbers (1-based) with a hit in any reading, deduplicated. */
+export function hitLines(b, bad) {
+  const lines = new Set();
+  for (const r of readings(b)) r.forEach((l, i) => bad(l) && lines.add(i + 1));
+  return [...lines].sort((x, y) => x - y);
+}
+
+/** True when any reading of the whole buffer holds a hit. */
+export const textHit = (b, bad) => readings(b).some((r) => bad(r.join("\n")));
 
 /**
  * Scans every header line of a commit or tag except the gpgsig block (mergetag, unknown headers and continuation lines included).
@@ -116,11 +132,15 @@ function scanHeader(header, prefix, hit, bad) {
   let inSig = false;
   for (const l of header.split("\n")) {
     if (l.startsWith(" ")) {
-      if (!inSig && bad(l)) hit(`${prefix}:header`);
+      // inside a signature only pure base64 lines are skipped; armor lines such as a Comment are scanned
+      if (!(inSig && /^ [A-Za-z0-9+/=]*$/.test(l)) && bad(l)) hit(`${prefix}:header`);
+      continue;
+    }
+    if (inSig) {
+      if (bad(l)) hit(`${prefix}:header`);
       continue;
     }
     inSig = /^gpgsig(-sha256)?( |$)/.test(l);
-    if (inSig) continue;
     const id = /^(author|committer|tagger) /.exec(l);
     if (id) {
       const m = /^(?:author|committer|tagger) ([^]*?) ?<([^<>]*)> \d+ [+-]\d{4}$/.exec(l);
@@ -166,9 +186,9 @@ export function parseObjects(buf) {
   return objs;
 }
 
-function splitMessage(text) {
-  const i = text.indexOf("\n\n");
-  return i < 0 ? { header: text, message: "" } : { header: text.slice(0, i), message: text.slice(i + 2) };
+function splitMessage(buf) {
+  const i = buf.indexOf("\n\n");
+  return i < 0 ? { header: buf.toString("utf8"), message: Buffer.alloc(0) } : { header: buf.toString("utf8", 0, i), message: buf.subarray(i + 2) };
 }
 
 /**
@@ -213,14 +233,14 @@ export function scanRepo(repoDir, refs, deny) {
   for (const o of objs) {
     if (o.type === "commit") {
       stats.commits++;
-      const { header, message } = splitMessage(o.body.toString("utf8"));
+      const { header, message } = splitMessage(o.body);
       scanHeader(header, short(o.hash), hit, bad);
-      if (bad(message)) hit(`${short(o.hash)}:message`);
+      if (textHit(message, bad)) hit(`${short(o.hash)}:message`);
     } else if (o.type === "tag") {
       if (!resolved.some((r) => r.tagName !== null && r.hash === o.hash) && !want.has(o.hash)) stats.tags++;
-      const { header, message } = splitMessage(o.body.toString("utf8"));
+      const { header, message } = splitMessage(o.body);
       scanHeader(header, `tag:${short(o.hash)}`, hit, bad);
-      if (bad(message)) hit(`tag:${short(o.hash)}:message`);
+      if (textHit(message, bad)) hit(`tag:${short(o.hash)}:message`);
     } else if (o.type === "tree") {
       let p = 0;
       const b = o.body;
@@ -238,19 +258,11 @@ export function scanRepo(repoDir, refs, deny) {
       const path = pathOf.get(o.hash) ?? "";
       if (path && bad(path)) hit(`${short(o.hash)}:path`);
       const label = !path || bad(path) ? short(o.hash) : path;
-      let texts = [o.body.toString("utf8")];
-      if (o.body.includes(0)) {
-        const r = nulBlobTexts(o.body);
-        texts = r.texts;
-        if (!r.wide) {
-          stats.binary++;
-          stats.skipped.push(o.hash);
-        }
+      if (o.body.includes(0) && !looksWide(o.body)) {
+        stats.binary++;
+        stats.skipped.push(o.hash);
       }
-      for (const t of texts)
-        t.split("\n").forEach((line, i) => {
-          if (bad(line)) hit(`${label}:${i + 1}`);
-        });
+      for (const n of hitLines(o.body, bad)) hit(`${label}:${n}`);
     }
   }
   const out = [...hits];

@@ -411,3 +411,105 @@ test("corrupt repo: a missing tree (rev-list fails) exits 3, never a clean pass"
   assert.equal(r.code, 3, r.all);
   assert.throws(() => scan(d));
 });
+
+// ---- round 2: one shared reading function for blobs, commit text and tag text ----
+const u16 = (s, bom = true) => Buffer.concat([bom ? Buffer.from([0xff, 0xfe]) : Buffer.alloc(0), Buffer.from(s, "utf16le")]);
+
+test("NUL next to the term keeps the word limits: separators, letters before and after", () => {
+  const cases = {
+    "note-before.txt": `note\0${TERM} rest of line\n`,
+    "fields.bin": `fixture-alpha\0${TERM}\0fixture-beta\n`,
+    "letter-after.txt": `${TERM}\0note\n`,
+  };
+  for (const [p, c] of Object.entries(cases)) {
+    const d = mkrepo();
+    commit(d, { [p]: Buffer.from(c) });
+    assert.deepEqual(scan(d), [`${p}:1`], p);
+  }
+});
+
+test("tar-shaped blob with the term after NUL padding is a hit", () => {
+  const d = mkrepo();
+  const h = Buffer.alloc(512);
+  h.write("note.txt");
+  h.write("ustar", 257);
+  commit(d, { "a.tar": Buffer.concat([h, Buffer.from(`${TERM}\n`), Buffer.alloc(100)]) });
+  assert.equal(scan(d).length, 1);
+});
+
+test("NUL does not make a longer word a hit", () => {
+  const d = mkrepo();
+  commit(d, { "a.txt": Buffer.from(`x${TERM}y\0z\n`) });
+  assert.deepEqual(scan(d), []);
+});
+
+test("no-BOM UTF-16 with CJK around the term is a hit and is counted as binary", () => {
+  const d = mkrepo();
+  const cjk = "\u4e2d\u6587".repeat(40);
+  commit(d, { "a.txt": Buffer.from(`${cjk}\u4e2d${TERM}\u4e2d${cjk}`, "utf16le") });
+  const hits = scan(d);
+  assert.equal(hits.length, 1);
+  assert.equal(hits.stats.skipped.length, 1);
+});
+
+test("UTF-16 BE without BOM and LE with BOM are read as text, not counted as binary", () => {
+  const d = mkrepo();
+  const t = `ok\n${TERM}\n`.repeat(4);
+  commit(d, { "a.txt": Buffer.from(Buffer.from(t, "utf16le")).swap16(), "b.txt": u16(t) });
+  const hits = scan(d);
+  assert.ok(hits.length >= 2);
+  assert.equal(hits.stats.skipped.length, 0);
+});
+
+test("tag -a -F with a UTF-16 file (with and without BOM) is a hit", () => {
+  for (const bom of [true, false]) {
+    const d = mkrepo();
+    commit(d, { "a.txt": "x\n" });
+    const f = join(mkdir(), "msg");
+    writeFileSync(f, u16(`release note ${TERM}\r\n`, bom));
+    git(d, ["tag", "-a", "-F", f, "v1"]);
+    const hits = scan(d, ["main", "refs/tags/v1"]);
+    assert.equal(hits.length, 1, `bom ${bom}`);
+    assert.match(hits[0], /^tag:.*:message$/);
+  }
+});
+
+test("crafted tag and commit with a UTF-16 message are hits, one location each", () => {
+  const d = mkrepo();
+  const h = commit(d, { "a.txt": "x\n" });
+  const tree = git(d, ["rev-parse", "HEAD^{tree}"]).trim();
+  const body = Buffer.from(`note ${TERM}\n`, "utf16le");
+  const t = craft(d, "tag", Buffer.concat([Buffer.from(`object ${h}\ntype commit\ntag v1\ntagger ${ID}\n\n`), body]));
+  git(d, ["update-ref", "refs/tags/v1", t]);
+  const c = craft(d, "commit", Buffer.concat([Buffer.from(`tree ${tree}\nauthor ${ID}\ncommitter ${ID}\nencoding UTF-16LE\n\n`), body]));
+  git(d, ["update-ref", "refs/heads/main", c]);
+  assert.deepEqual(scan(d, ["main", "refs/tags/v1"]).sort(), [`${short(c)}:message`, `tag:${short(t)}:message`].sort());
+});
+
+test("commit message with a NUL-separated term keeps the word limits", () => {
+  const d = mkrepo();
+  commit(d, { "a.txt": "x\n" });
+  const c = crafted(d, "", `note\0${TERM} rest\n`);
+  assert.deepEqual(scan(d), [`${short(c)}:message`]);
+});
+
+test("gpgsig: armor lines and the first line are scanned, only base64 lines are skipped", () => {
+  const sigs = {
+    comment: `gpgsig -----BEGIN PGP SIGNATURE-----\n Comment: ${TERM}@example.invalid\n \n iQEzBAABCAAdFiEE\n -----END PGP SIGNATURE-----\n`,
+    first: `gpgsig ${TERM}\n \n iQEzBAAB\n`,
+    sha256: `gpgsig-sha256 -----BEGIN PGP SIGNATURE-----\n Comment: ${TERM}@example.invalid\n \n iQEz\n -----END PGP SIGNATURE-----\n`,
+  };
+  for (const [k, s] of Object.entries(sigs)) {
+    const d = mkrepo();
+    commit(d, { "a.txt": "x\n" });
+    const c = crafted(d, s);
+    assert.deepEqual(scan(d), [`${short(c)}:header`], k);
+  }
+});
+
+test("option values may not start with --", () => {
+  const d = mkrepo();
+  commit(d, { "a.txt": "x\n" });
+  assert.equal(cli(d, ["--refs", "--release"]).code, 5);
+  assert.equal(cli(d, ["--repo", "--release"]).code, 5);
+});
