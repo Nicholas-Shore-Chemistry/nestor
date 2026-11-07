@@ -267,22 +267,23 @@ test("release.yml validates the tag in shell and treats only a literal false as 
   const yml = readFileSync(join(TOOLS, "..", ".github", "workflows", "release.yml"), "utf8");
   const m = /- name: Check tag and mode\r?\n(?:\s+env:[\s\S]*?)?\s+run: \|\r?\n([\s\S]*?)\r?\n      - name:/.exec(yml);
   assert.ok(m, "check step present");
+  const P = /- '([\w-]+)--v\*'/.exec(yml)[1];
   const script = m[1].replace(/^ {10}/gm, "");
   const sh = (env) => spawnSync("bash", ["-c", `GITHUB_ENV=$(mktemp)\n${script}\ncat "$GITHUB_ENV"`], { env: { ...process.env, ...env }, encoding: "utf8" });
   const real = { EVENT: "push", DRY_RUN_INPUT: "" };
-  assert.equal(sh({ ...real, TAG: "nestor--v1.2.3" }).status, 0);
-  assert.match(sh({ ...real, TAG: "nestor--v1.2.3" }).stdout, /DRY_RUN=false/);
-  for (const tag of ["nestor--v1.2.3-dryrun", "v1.2.3", "nestor--v1;x", "nestor--v1 2", "../x", "--force", ""]) {
+  assert.equal(sh({ ...real, TAG: `${P}--v1.2.3` }).status, 0);
+  assert.match(sh({ ...real, TAG: `${P}--v1.2.3` }).stdout, /DRY_RUN=false/);
+  for (const tag of [`${P}--v1.2.3-dryrun`, "v1.2.3", `${P}--v1;x`, `${P}--v1 2`, "../x", "--force", ""]) {
     assert.notEqual(sh({ ...real, TAG: tag }).status, 0, `real push, tag ${tag}`);
   }
   for (const input of ["true", "", "False", "0", "yes"]) {
-    const r = sh({ EVENT: "workflow_dispatch", DRY_RUN_INPUT: input, TAG: "nestor--v1.2.3-dryrun" });
+    const r = sh({ EVENT: "workflow_dispatch", DRY_RUN_INPUT: input, TAG: `${P}--v1.2.3-dryrun` });
     assert.equal(r.status, 0, `dispatch ${input}`);
     assert.match(r.stdout, /DRY_RUN=true/, `dispatch ${input}`);
   }
-  const f = sh({ EVENT: "workflow_dispatch", DRY_RUN_INPUT: "false", TAG: "nestor--v1.2.3" });
+  const f = sh({ EVENT: "workflow_dispatch", DRY_RUN_INPUT: "false", TAG: `${P}--v1.2.3` });
   assert.match(f.stdout, /DRY_RUN=false/);
-  assert.notEqual(sh({ EVENT: "workflow_dispatch", DRY_RUN_INPUT: "false", TAG: "nestor--v1.2.3-dryrun" }).status, 0);
+  assert.notEqual(sh({ EVENT: "workflow_dispatch", DRY_RUN_INPUT: "false", TAG: `${P}--v1.2.3-dryrun` }).status, 0);
 });
 
 test("ci.yml enforces --release when SCAN_ENFORCE is true", () => {
