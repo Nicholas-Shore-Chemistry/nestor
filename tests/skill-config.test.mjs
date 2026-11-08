@@ -33,10 +33,45 @@ test('config skill is user-only', () => {
 test('config skill calls config.mjs through CLAUDE_PLUGIN_ROOT and never writes config.json directly', () => {
   assert.match(body, /node "\$\{CLAUDE_PLUGIN_ROOT\}\/scripts\/config\.mjs" --show/);
   assert.match(body, /--set/);
-  const tools = front['allowed-tools'].split(',').map((t) => t.trim());
-  assert.deepEqual(tools, ['Bash', 'AskUserQuestion']);
-  assert.ok(!tools.includes('Write') && !tools.includes('Edit'));
   assert.match(body, /never edit `config\.json`/i);
+});
+
+const RULE = 'Bash(node "${CLAUDE_PLUGIN_ROOT}/scripts/config.mjs" *)';
+const PREFIX = 'node "${CLAUDE_PLUGIN_ROOT}/scripts/config.mjs" ';
+
+// Splits like Claude Code: on commas and on whitespace, but not inside (...).
+function splitTools(s) {
+  const out = [];
+  let cur = '';
+  let depth = 0;
+  for (const ch of s) {
+    if (ch === '(') depth++;
+    if (ch === ')') depth = Math.max(0, depth - 1);
+    if (depth === 0 && (ch === ',' || /\s/.test(ch))) {
+      if (cur) out.push(cur);
+      cur = '';
+    } else cur += ch;
+  }
+  if (cur) out.push(cur);
+  return out;
+}
+
+test('config skill pre-approves only config.mjs, never bare Bash or an interpreter prefix', () => {
+  const tools = splitTools(front['allowed-tools']);
+  for (const bad of ['Bash', 'PowerShell', 'Bash(node:*)', 'Bash(node *)']) {
+    assert.ok(!tools.includes(bad), `must not pre-approve ${bad}`);
+  }
+  assert.deepEqual(tools, [RULE, 'AskUserQuestion']);
+  assert.ok(!tools[0].includes(':*'), 'space form, as the docs prefer');
+  for (const t of ['Write', 'Edit', 'NotebookEdit']) assert.ok(!tools.includes(t), t);
+});
+
+test('every node command in the config skill body matches the allowed-tools rule', () => {
+  const starts = [...body.matchAll(/\bnode /g)].map((x) => x.index);
+  assert.ok(starts.length > 0);
+  for (const i of starts) {
+    assert.equal(body.slice(i, i + PREFIX.length), PREFIX, body.slice(i, i + 80));
+  }
 });
 
 test('config skill holds no absolute path', () => {

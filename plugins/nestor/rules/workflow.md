@@ -74,3 +74,5 @@ summaries of earlier tasks, whole plans or diffs in the prompt. Reports go to a 
 - Parallel agents only on disjoint files, each in its own worktree (`isolation: worktree`). Parallel work saves wall
   clock time, not usage, and it raises the 5h peak.
 - A denied action is a result: stop and report it. Never reach the same result another way.
+- A NestOr skill never pre-approves bare `Bash` or `PowerShell`, or an interpreter prefix such as `Bash(node:*)`. It
+  names the exact script as `Bash(node "<root>/scripts/<name>.mjs" *)`, or it pre-approves no shell.
