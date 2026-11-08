@@ -1,0 +1,22 @@
+{
+  "name": "nestor",
+  "owner": { "name": "Nicholas Shore" },
+  "version": "0.1.0",
+  "description": "NestOr: usage-aware orchestration for Claude Code, with the ctx-meter statusline plugin.",
+  "plugins": [
+    {
+      "name": "nestor",
+      "source": "./plugins/nestor",
+      "description": "Orchestration rules, a usage gate, a spawn guard and the NestOr agents."
+    },
+    {
+      "name": "ctx-meter",
+      "source": {
+        "source": "git-subdir",
+        "url": "https://github.com/Nicholas-Shore-Chemistry/ctx-meter.git",
+        "path": "plugins/ctx-meter"
+      },
+      "description": "Statusline context and usage meter that NestOr reads."
+    }
+  ]
+}
