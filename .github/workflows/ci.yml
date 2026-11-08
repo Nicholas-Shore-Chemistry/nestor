@@ -32,6 +32,33 @@ jobs:
       - name: Test
         run: npm test
 
+  validate:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Keep LF line endings
+        shell: bash
+        run: git config --global core.autocrlf false
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install Claude Code CLI
+        shell: bash
+        run: npm install -g @anthropic-ai/claude-code@2.1.319
+      - name: Validate plugin (strict)
+        shell: bash
+        run: claude plugin validate --strict plugins/nestor
+      - name: Validate marketplace (strict)
+        shell: bash
+        run: claude plugin validate --strict .
+
   scan:
     runs-on: ubuntu-latest
     steps:
