@@ -23,6 +23,7 @@ import {
   flatten,
   loadConfig,
   mergeConfig,
+  unknownKeys,
   validateConfig,
 } from './lib/nestor-config.mjs';
 
@@ -35,7 +36,7 @@ class Usage extends Error {}
 /** Parses a command-line value for `key`; returns { value } or { error }. */
 export function parseValue(key, text) {
   const t = String(text).trim();
-  if (typeof KEYS[key] === 'boolean') {
+  if (Object.hasOwn(KEYS, key) && typeof KEYS[key] === 'boolean') {
     if (/^(true|on)$/i.test(t)) return { value: true };
     if (/^(false|off)$/i.test(t)) return { value: false };
     return { error: `${key}: must be true, false, on or off` };
@@ -47,18 +48,26 @@ export function parseValue(key, text) {
   return { error: `${key}: must be a whole number` };
 }
 
+const isObj = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
+
+/** Sets key in obj; returns false (nothing set) if a non-object sits on the path. */
 function setPath(obj, key, value) {
   const parts = key.split('.');
   let o = obj;
-  for (const p of parts.slice(0, -1)) o = o[p] ??= {};
+  for (const p of parts.slice(0, -1)) {
+    if (o[p] === undefined) o[p] = {};
+    else if (!isObj(o[p])) return false;
+    o = o[p];
+  }
   o[parts.at(-1)] = value;
+  return true;
 }
 
 function unsetPath(obj, key) {
   const parts = key.split('.');
   let o = obj;
   for (const p of parts.slice(0, -1)) {
-    if (!o || typeof o[p] !== 'object') return;
+    if (!isObj(o[p])) return;
     o = o[p];
   }
   delete o[parts.at(-1)];
@@ -74,7 +83,7 @@ function readPartial(file) {
     return { unreadable: true };
   }
   try {
-    const v = JSON.parse(text.replace(/^﻿/, ''));
+    const v = JSON.parse(text.replace(/^\uFEFF/, ''));
     if (v === null || typeof v !== 'object' || Array.isArray(v)) return { unreadable: true };
     return { partial: v };
   } catch {
@@ -82,13 +91,31 @@ function readPartial(file) {
   }
 }
 
-function writeAtomic(file, partial) {
+const RENAME_TRIES = 5;
+const RENAME_DELAY_MS = 75;
+const TRANSIENT = new Set(['EPERM', 'EBUSY', 'EACCES']);
+const sleepSync = (ms) => Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+
+/** Renames with a few short retries: on Windows another process can hold the target for a moment. */
+function renameRetry(from, to, { rename = fs.renameSync, sleepMs = sleepSync } = {}) {
+  for (let i = 1; ; i++) {
+    try {
+      return rename(from, to);
+    } catch (e) {
+      if (i >= RENAME_TRIES || !TRANSIENT.has(e?.code)) throw e;
+      sleepMs(RENAME_DELAY_MS);
+    }
+  }
+}
+
+/** Writes `partial` through a temp file. `deps` is a test seam: { rename, sleepMs }. */
+export function writeAtomic(file, partial, deps = {}) {
   const dir = path.dirname(file);
   fs.mkdirSync(dir, { recursive: true });
   const tmp = path.join(dir, `.config.json.${process.pid}.${Date.now()}.tmp`);
   try {
     fs.writeFileSync(tmp, `${JSON.stringify(partial, null, 2)}\n`);
-    fs.renameSync(tmp, file);
+    renameRetry(tmp, file, deps);
   } catch (e) {
     try {
       fs.rmSync(tmp, { force: true });
@@ -98,7 +125,7 @@ function writeAtomic(file, partial) {
 }
 
 /** Validates `merged` as a whole; on success writes only the diff. Returns the exit code. */
-function validateAndWrite(file, merged, io) {
+function validateAndWrite(file, merged, io, existing = {}) {
   const { errors, warnings } = validateConfig(merged);
   for (const w of warnings) io.out(`warning: ${w}`);
   if (errors.length) {
@@ -106,6 +133,8 @@ function validateAndWrite(file, merged, io) {
     io.err('nothing written');
     return 2;
   }
+  const dropped = unknownKeys(DEFAULTS, existing);
+  if (dropped.length) io.err(`warning: unknown key(s) in the file dropped: ${dropped.join(', ')}`);
   writeAtomic(file, diffFromDefaults(merged));
   io.out(`written ${file}`);
   return 0;
@@ -121,6 +150,7 @@ function parseArgs(argv) {
     const a = argv[i];
     if (a === '--preset') {
       mode('preset');
+      if (o.preset !== undefined) throw new Usage('--preset given twice');
       o.preset = argv[++i];
       if (!['standard', 'ultra', 'custom'].includes(o.preset)) throw new Usage('--preset needs standard, ultra or custom');
     } else if (a === '--set') {
@@ -144,7 +174,7 @@ function cmdShow(env, io) {
   const r = loadConfig(env);
   const flat = flatten(r.config);
   const fromFile = flatten(diffFromDefaults(r.config));
-  for (const [k, v] of Object.entries(flat)) io.out(`${k} = ${v} (${k in fromFile ? 'file' : 'default'})`);
+  for (const [k, v] of Object.entries(flat)) io.out(`${k} = ${v} (${Object.hasOwn(fromFile, k) ? 'file' : 'default'})`);
   for (const w of r.warnings) io.out(`warning: ${w}`);
   for (const e of r.errors) io.out(`error: ${e}`);
   return 0;
@@ -172,25 +202,26 @@ function cmdPrint(env, io) {
 }
 
 function cmdSet(file, sets, io) {
+  for (const [key] of sets) if (!Object.hasOwn(KEYS, key)) throw new Usage(`unknown key: ${key}`);
   const cur = readPartial(file);
   if (cur.unreadable) {
     io.err('config file unreadable; fix it or run --reset');
     return 2;
   }
   const merged = mergeConfig(cur.partial);
-  for (const [key] of sets) if (!(key in KEYS)) throw new Usage(`unknown key: ${key}`);
   const problems = [];
   for (const [key, text] of sets) {
     const p = parseValue(key, text);
     if (p.error) problems.push(p.error);
-    else setPath(merged, key, p.value);
+    else if (!setPath(merged, key, p.value))
+      problems.push(`${key}: the config file holds a non-object on this path; fix it or run --reset`);
   }
   if (problems.length) {
     for (const e of problems) io.err(`error: ${e}`);
     io.err('nothing written');
     return 2;
   }
-  return validateAndWrite(file, merged, io);
+  return validateAndWrite(file, merged, io, cur.partial);
 }
 
 function cmdReset(file, key, io) {
@@ -199,14 +230,15 @@ function cmdReset(file, key, io) {
     io.out(`written ${file}`);
     return 0;
   }
-  if (!(key in KEYS)) throw new Usage(`unknown key: ${key}`);
+  if (!Object.hasOwn(KEYS, key)) throw new Usage(`unknown key: ${key}`);
   const cur = readPartial(file);
   if (cur.unreadable) {
     io.err('config file unreadable; fix it or run --reset');
     return 2;
   }
+  const existing = structuredClone(cur.partial);
   unsetPath(cur.partial, key);
-  return validateAndWrite(file, mergeConfig(cur.partial), io);
+  return validateAndWrite(file, mergeConfig(cur.partial), io, existing);
 }
 
 /** Line source for interactive mode: a terminal via readline, otherwise all of stdin split on CR/LF. */
@@ -234,6 +266,14 @@ async function makeAsker(forced) {
 async function interactive(file, env, presetArg, forced, io) {
   const asker = await makeAsker(forced);
   try {
+    const loaded = loadConfig(env);
+    for (const w of loaded.warnings) io.out(`warning: ${w}`);
+    for (const e of loaded.errors) io.out(`error: ${e}`);
+    const existing = readPartial(file);
+    if (existing.unreadable) {
+      io.err('config file unreadable; fix it or run --reset');
+      return 2;
+    }
     let choice = presetArg;
     while (!choice) {
       const a = (await asker.ask('Preset (standard / ultra / custom) [custom]: ')).trim().toLowerCase();
@@ -246,7 +286,7 @@ async function interactive(file, env, presetArg, forced, io) {
       io.out(`written ${file}`);
       return 0;
     }
-    const current = flatten(loadConfig(env).config);
+    const current = flatten(loaded.config);
     const merged = mergeConfig({});
     for (const [k, v] of Object.entries(current)) setPath(merged, k, v);
     for (const g of GROUPS) {
@@ -265,7 +305,7 @@ async function interactive(file, env, presetArg, forced, io) {
         }
       }
     }
-    return validateAndWrite(file, merged, io);
+    return validateAndWrite(file, merged, io, existing.partial);
   } finally {
     asker.close();
   }

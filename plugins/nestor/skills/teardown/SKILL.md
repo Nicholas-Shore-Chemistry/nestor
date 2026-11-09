@@ -14,3 +14,5 @@ This skill reverses `/nestor:setup`. The script `setup.mjs` does the work, and t
 3. Ask separately with the question tool whether to delete the NestOr config too, which holds the user's limits and switches.
 4. Run the script once. If the user said yes in step 3, run `node "${CLAUDE_PLUGIN_ROOT}/scripts/setup.mjs" --teardown --purge-config`, otherwise run `node "${CLAUDE_PLUGIN_ROOT}/scripts/setup.mjs" --teardown`. Show the user the notes it prints. Exit code 2 means nothing was changed and the record is kept: `settings.json` isn't valid JSON, or it holds a number or a key that a rewrite would change. Show the message; the user must fix the file and run this skill again. Exit code 1 with "It was kept" means the record couldn't be read just now; run this skill again later.
 5. Tell the user that this skill does not remove the plugin itself: that is done with `/plugin uninstall nestor@nestor`.
+
+Troubleshooting: if the plugin path contains a `)` (a Windows user name can), the exact-script `allowed-tools` entries do not match. This fails safe: Claude Code asks before each script call. Nothing else breaks.

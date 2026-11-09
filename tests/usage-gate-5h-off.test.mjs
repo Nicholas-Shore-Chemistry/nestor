@@ -90,16 +90,19 @@ test('5h off: --wait polls until weekly GO', async () => {
   assert.equal(r.seven_day, 5);
 });
 
-test('5h off: stale weekly past its reset gives NO-DATA', () => {
-  const r = ev(dirWith([weekOnly(91, { reset: NOW - 86400_000, updated: NOW - 8 * 86400_000 })]));
-  assert.equal(r.verdict, 'NO-DATA');
-  assert.equal(r.reason, 'snapshot stale');
-  assert.match(r.hint, /refreshInterval/);
-  assert.equal(r.fresh, false);
+test('WP4.4-C3: 5h off: a passed weekly reset gives NO-DATA needing a reading, stale or fresh', () => {
+  for (const updated of [NOW - 8 * 86400_000, NOW - 30_000]) {
+    const r = ev(dirWith([weekOnly(91, { reset: NOW - 60_000, updated })]));
+    assert.equal(r.verdict, 'NO-DATA', `updated ${NOW - updated} ms ago`);
+    assert.equal(r.reason, 'no reading since the weekly reset');
+    assert.equal(r.needs_reading, true);
+    assert.equal(r.fresh, false);
+    assert.match(r.hint, /any model turn/i);
+  }
 });
 
-test('5h off: fresh weekly past its reset counts as 0 %', () => {
-  const r = ev(dirWith([weekOnly(91, { reset: NOW - 60_000 })]));
+test('WP4.4-C3: 5h off: a live weekly window wins over a passed one', () => {
+  const r = ev(dirWith([weekOnly(91, { reset: NOW - 60_000 }), weekOnly(20)]));
   assert.equal(r.verdict, 'GO');
-  assert.equal(r.seven_day, 0);
+  assert.equal(r.seven_day, 20);
 });

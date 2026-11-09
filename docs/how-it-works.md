@@ -46,7 +46,7 @@ Several commands below start with `node <root>/scripts/...`. `<root>` is the `in
 The statusline runs only while an interactive session is open, so that is the only time a snapshot gets written. A
 headless run (`claude -p`) writes none. Within a session, the snapshots keep refreshing only if
 `statusLine.refreshInterval` is set, and `/nestor:setup` sets that key to `60` (seconds). Without it the gate can find
-only old data and answers `NO-DATA`, until the 5-hour window in that old data has passed its reset (see below).
+only old data and answers `NO-DATA`.
 
 ```
 node <root>/scripts/usage-gate.mjs --path <slow|fast> --action <orch|worker|opus> [--wait] [--max-wait-min <n>] [--poll-sec <n>] [--log <file>]
@@ -71,15 +71,17 @@ reading reaches `fiveHour.killWorkers`, `kill_workers` is true, and the rules te
 workers and rebuild from git and their report files.
 
 `NO-DATA` denies safely. The gate answers `NO-DATA` when no snapshot holds rate limits, when the newest reading is
-older than `gate.freshMin`, or when the 5-hour window is missing. A plan without `rate_limits` (an API key, for
+older than `gate.freshMin`, when the 5-hour window is missing, or when the window has passed its reset. A plan without `rate_limits` (an API key, for
 example) never produces a reading, so every tagged spawn would be denied. `hint` says what to switch off in that
-case. If the 5-hour window has already reset, the gate counts it as 0 %, even from an old snapshot, because a passed reset
-means a new window has begun. The weekly figure is then the last one seen. With the 5-hour check off, a passed weekly
-reset still needs a fresh reading.
+case. A window that has passed its reset is no reading of the current window, because usage may have been spent since, in
+another session or on claude.ai. The gate then answers `NO-DATA` with `needs_reading: true` and the reason `no reading
+since the 5h reset`, however fresh the snapshot is. Any model turn in a session brings a new reading within about a
+minute. A passed weekly reset behaves the same, with the 5-hour check on or off.
 
 With `--wait` the script polls every `gate.pollSec` seconds until the verdict is `GO` or `gate.maxWaitMin` has
-passed. Run it in the background, so the waiting costs no turns. The harness wakes the controller when the script
-exits. That wake-up needs the session to stay open, for the same reason as the snapshots.
+passed. If the reset passes during the wait, it exits at once with `NO-DATA`: a waiting session makes no turns, so
+only the next turn can bring the new reading. Run it in the background, so the waiting costs no turns. The harness
+wakes the controller when the script exits. That wake-up needs the session to stay open, for the same reason as the snapshots.
 
 ## The 5-hour off switch
 

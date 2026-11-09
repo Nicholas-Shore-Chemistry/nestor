@@ -169,8 +169,10 @@ test('--where prints JSON', () => {
   assert.match(o.warning, /newest cached 1\.1\.0/);
 });
 
-test('CLI started through a symlinked folder still runs', () => {
-  const link = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'ctxl-')), 'scripts');
+test('CLI started through a symlinked folder still runs', (t) => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'ctxl-'));
+  t.after(() => fs.rmSync(tmp, { recursive: true, force: true }));
+  const link = path.join(tmp, 'scripts');
   fs.symlinkSync(path.dirname(CTX), link, 'junction');
   const r = spawnSync(process.execPath, [path.join(link, 'ctx.mjs'), '--where'], {
     env: { ...process.env, CLAUDE_CONFIG_DIR: configDir() },

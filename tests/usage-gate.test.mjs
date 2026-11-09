@@ -5,8 +5,9 @@ import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { evaluate, pollDelayMs } from '../plugins/nestor/scripts/usage-gate.mjs';
+import { evaluate, pollDelayMs, waitDelayMs } from '../plugins/nestor/scripts/usage-gate.mjs';
 import { DEFAULTS, mergeConfig } from '../plugins/nestor/scripts/lib/nestor-config.mjs';
+import { spawn } from 'node:child_process';
 import { iso, writeSnaps, cfgDir } from './gate-helpers.mjs';
 
 const GATE = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'plugins', 'nestor', 'scripts', 'usage-gate.mjs');
@@ -57,11 +58,29 @@ test('stale snapshot gives NO-DATA', () => {
   assert.match(r.hint, /refreshInterval/);
 });
 
-test('a passed reset counts as 0 % even when the snapshot is stale', () => {
-  const d = dirWith([{ five: 100, reset: NOW - 60_000, updated: NOW - 3 * 3600_000 }]);
-  const r = ev(d, { pathway: 'fast', action: 'orch' });
+// WP4.4-C3: a passed window is no reading of the current window, whatever the snapshot's age.
+test('WP4.4-C3: a passed 5h reset gives NO-DATA needing a reading, stale or fresh snapshot', () => {
+  for (const updated of [NOW - 3 * 3600_000, NOW - 30_000]) {
+    const r = ev(dirWith([{ five: 100, reset: NOW - 60_000, updated }]), { pathway: 'fast', action: 'orch' });
+    assert.equal(r.verdict, 'NO-DATA', `updated ${NOW - updated} ms ago`);
+    assert.equal(r.reason, 'no reading since the 5h reset');
+    assert.equal(r.needs_reading, true);
+    assert.match(r.hint, /any model turn/i);
+  }
+});
+
+test('WP4.4-C3: a passed weekly reset with the 5h check on gives NO-DATA needing a reading', () => {
+  const r = ev(dirWith([{ five: 10, week: 99, weekReset: NOW - 60_000 }]));
+  assert.equal(r.verdict, 'NO-DATA');
+  assert.equal(r.reason, 'no reading since the weekly reset');
+  assert.equal(r.needs_reading, true);
+});
+
+test('WP4.4-C3: a live window in any snapshot wins over a passed one', () => {
+  const r = ev(dirWith([{ five: 100, reset: NOW - 60_000 }, { five: 20 }]));
   assert.equal(r.verdict, 'GO');
-  assert.equal(r.five_hour, 0);
+  assert.equal(r.five_hour, 20);
+  assert.equal(r.needs_reading, false);
 });
 
 test('weekly over the stop line stops', () => {
@@ -197,8 +216,10 @@ test('CLI: --path/--action without a value gives ERROR', () => {
   }
 });
 
-test('CLI started through a symlinked folder still runs', () => {
-  const link = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'ugl-')), 'scripts');
+test('CLI started through a symlinked folder still runs', (t) => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'ugl-'));
+  t.after(() => fs.rmSync(tmp, { recursive: true, force: true }));
+  const link = path.join(tmp, 'scripts');
   fs.symlinkSync(path.dirname(GATE), link, 'junction');
   const r = spawnSync(process.execPath, [path.join(link, 'usage-gate.mjs'), '--path', 'slow', '--action', 'worker'], {
     env: { ...process.env, CLAUDE_CONFIG_DIR: cfgDir(null) },
@@ -206,4 +227,64 @@ test('CLI started through a symlinked folder still runs', () => {
   });
   assert.equal(r.status, 12, r.stdout + r.stderr);
   assert.equal(JSON.parse(r.stdout).verdict, 'NO-DATA');
+});
+
+// G1: one --wait sleep never runs past maxWaitMin.
+test('G1: a huge pollSec still ends the wait in TIMEOUT (exit 3) within about maxWaitMin', () => {
+  const t0 = Date.now();
+  const r = spawnSync(process.execPath, [GATE, '--wait', '--poll-sec', '1000000', '--max-wait-min', '0.02'], {
+    env: { ...process.env, CLAUDE_CONFIG_DIR: cfgDir([{ five: 70 }]) },
+    encoding: 'utf8',
+    timeout: 10_000,
+  });
+  assert.equal(r.status, 3, `status ${r.status} signal ${r.signal}`);
+  assert.equal(JSON.parse(r.stdout).verdict, 'TIMEOUT');
+  assert.ok(Date.now() - t0 < 8000);
+});
+
+test('G1: waitDelayMs caps the sleep at the time left, with a floor', () => {
+  assert.equal(waitDelayMs(1e6, 5000), 5050);
+  assert.equal(waitDelayMs(30, 600_000), 30_000);
+  assert.equal(waitDelayMs(1e6, -5000), 100);
+});
+
+// WP4.4-C3 --wait paths. Fixtures are dated from the real clock.
+function runWait(base, args) {
+  const child = spawn(process.execPath, [GATE, '--wait', '--poll-sec', '1', ...args], {
+    env: { ...process.env, CLAUDE_CONFIG_DIR: base },
+  });
+  let out = '';
+  child.stdout.on('data', (c) => (out += c));
+  const done = new Promise((resolve) => child.on('close', (code) => resolve({ code, out })));
+  return { done };
+}
+
+test('WP4.4-C3: --wait exits at once with NO-DATA when the reset passes during the wait', async () => {
+  const base = cfgDir([{ five: 70, reset: Date.now() + 1500 }]);
+  const t0 = Date.now();
+  const { done } = runWait(base, ['--max-wait-min', '1']);
+  const { code, out } = await done;
+  assert.equal(code, 12, out);
+  const r = JSON.parse(out.trim());
+  assert.equal(r.verdict, 'NO-DATA');
+  assert.equal(r.needs_reading, true);
+  assert.ok(Date.now() - t0 < 20_000);
+});
+
+test('WP4.4-C3: --wait that starts needing a reading keeps polling until GO', async () => {
+  const base = cfgDir([{ five: 70, reset: Date.now() - 60_000 }]);
+  const { done } = runWait(base, ['--max-wait-min', '0.5']);
+  await new Promise((r) => setTimeout(r, 1500));
+  writeSnaps(path.join(base, 'ctx-meter'), [{ five: 10 }], Date.now());
+  const { code, out } = await done;
+  assert.equal(code, 0, out);
+  assert.equal(JSON.parse(out.trim()).verdict, 'GO');
+});
+
+test('WP4.4-C3: --wait that starts needing a reading ends in TIMEOUT if none arrives', async () => {
+  const base = cfgDir([{ five: 70, reset: Date.now() - 60_000 }]);
+  const { done } = runWait(base, ['--max-wait-min', '0.03']);
+  const { code, out } = await done;
+  assert.equal(code, 3, out);
+  assert.equal(JSON.parse(out.trim()).verdict, 'TIMEOUT');
 });

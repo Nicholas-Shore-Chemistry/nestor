@@ -66,14 +66,13 @@ turn with only that outstanding and the reply is lost.
   First start a background timer (Bash with `run_in_background: true`, a `sleep` sized to the task), then end the
   turn. The reply arrives as a hand-back message plus a task notification, usually before the timer fires.
 - A timer that fires with no reply means: start another timer. Don't resend the task.
-- The same holds while you wait on any background agent. Something must be pending when your turn ends; otherwise a
+- The same holds while you wait on any background agent: something must be pending when your turn ends, or a
   sub-orchestrator is forced to hand back and the reply is lost.
 - A "completed" notification from a background grunt is its idle state, not its end. The next `SendMessage` to its
   agent id resumes the same agent with its history.
 
 **Lifecycle**
-- Keep sending tasks to the same grunt; never spawn a new one because of "completed". Note its agent id and spawn
-  time in your handoff, so you can tell when its cache goes cold.
+- Keep sending tasks to the same grunt, never spawn a new one on "completed". Note its agent id and spawn time.
 - Rotate only when its reported context reaches `grunt.rotateK`: send it nothing more, spawn the next grunt.
 - Cold cache: idle longer than `grunt.coldIdleMin` and context above `grunt.coldCtxK` means spawn a fresh one instead
   of waking it; note that as a rotation.
@@ -106,11 +105,12 @@ The gate reads the plan limits from the statusline snapshots, which refresh with
 `node <root>/scripts/usage-gate.mjs --path <p> --action <orch|worker|opus> [--wait] [--max-wait-min <n>] --log <project>/orchestration/usage-log.jsonl`
 It prints one JSON line with `verdict`, `reason`, `hint`, `resets_at`, `wait_min` and `kill_workers`. Verdicts: `GO`,
 `NO-START`, `STOP`, `NO-DATA` (treat as `NO-START`), `TIMEOUT` after `--wait`, and `ERROR` for bad arguments (fix the
-command, never treat it as `GO`). The exit code is zero only for `GO`.
+command, never treat it as `GO`). The exit code is zero only for `GO`. `NO-DATA` with `needs_reading: true`: the
+window has reset and no reading of the new one exists yet; any model turn brings one within about a minute.
 - `<action>`: `orch` for a new sub-orchestrator or a run start, `opus` for an Opus agent, `worker` for the rest.
 - 5h: start only while usage is below `fiveHour.<p>.<action>`; `STOP` at or above `fiveHour.<p>.stop`.
 - Weekly: no start at or above `weekly.start`; `STOP` at or above `weekly.stop`.
-- `gate.enabled` off turns the whole gate off; `gate.fiveHour.enabled` off skips only the 5h checks.
+- `gate.enabled` off: no gate; `gate.fiveHour.enabled` off: no 5h checks.
 - Run the gate **before every spawn, after every worker report and after every merge.**
 - Every spawn prompt in a run starts with the line `NESTOR-RUN: <project> PATHWAY: <slow|fast>`; a
   sub-orchestrator's prompt also carries `NESTOR-TAG: <tag>`. The spawn guard hook denies such a spawn unless the gate
@@ -124,11 +124,12 @@ The user can start a run at any time. If the gate says no, the run waits for the
 - Not `GO`: write the resume point into the project's status file first, then start the gate with `--action orch
   --wait` in the background (Bash, `run_in_background: true`; longest wait `gate.maxWaitMin`). The harness wakes you
   when it exits: no `/loop`, scheduled wake-ups or polling turns. `GO`: spawn. `TIMEOUT`: `BLOCKED`, tell the user.
+  After a reset `--wait` ends with `NO-DATA`: run `--wait` once more with a short `--max-wait-min` for the new reading, then spawn on `GO`.
 - On `WAIT` from a sub-orchestrator, read `warm-until` and `reset` from its `CACHE:` line (§4.1):
   - **Warm** (`reset` no later than `warm-until`): background wait with `--max-wait-min` set to the minutes from now
     until `warm-until`. On `GO`, run the gate once more in the foreground, then `SendMessage` the same
     sub-orchestrator: `RESUME: gate GO <hh:mm>, continue from HANDOFF-<wp>.md`, then wait for its reply as in §1.1.
-    Don't spawn. On `TIMEOUT` its cache has gone cold: go on as for cold.
+    Don't spawn. On `TIMEOUT` its cache has gone cold: go on as for cold. `NO-DATA` with `needs_reading`: run the short `--wait` first, then as for `GO`.
   - **Cold** (`reset` after `warm-until`, `reset` unknown, or `warm-until=none`): background wait as for a gate that
     isn't `GO`, then spawn a fresh sub-orchestrator with its handoff. Don't `SendMessage` the old one.
   - `SendMessage` gets past the spawn guard, so the foreground gate before a `RESUME` is mandatory.
@@ -156,8 +157,7 @@ usable window is `cache.warmWindowMin`, which leaves a margin for the gate's ref
 - Write `warm-until=none` if your context is at or above `context.subOrchSoftK` (you rotate anyway), if you weren't
   spawned as `nestor:nestor`, or if the account is in overage or on a weekly `STOP`.
 - A fresh sub-orchestrator is spawned only when the wait outlasts the cache window; otherwise the old one carries on.
-- When the gate reports `kill_workers` true (5h at or above `fiveHour.killWorkers`): stop running workers with
-  `TaskStop`, then rebuild state from git and their report files.
+- `kill_workers` true (5h at or above `fiveHour.killWorkers`): `TaskStop` running workers, rebuild from git and reports.
 
 ## 5. Context caps
 Run `node <root>/scripts/ctx.mjs --tag "<tag>"` after every worker report and every merge. Sub-orchestrator: at

@@ -127,7 +127,8 @@ function assertRewritable(settings) {
       for (i++; i < t.length && t[i] !== '"'; i++) if (t[i] === '\\') i++;
     } else if (c === '-' || (c >= '0' && c <= '9')) {
       const lit = /^-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?/.exec(t.slice(i, i + 1000))[0];
-      if (normNumber(lit) !== normNumber(JSON.stringify(Number(lit)))) {
+      // A literal that overflows to Infinity stringifies as null: it cannot survive a rewrite either.
+      if (!Number.isFinite(Number(lit)) || normNumber(lit) !== normNumber(JSON.stringify(Number(lit)))) {
         throw new BadSettings(
           `settings.json holds the number ${lit}, which a rewrite would change. Nothing was changed. Shorten it or set statusLine.refreshInterval to ${REFRESH} by hand.`,
         );
@@ -229,6 +230,17 @@ function readSnapshotFacts(env) {
   return out;
 }
 
+/** Whether apply and teardown can rewrite settings.json; the same function as apply, so the same refusal. */
+function rewritability(settings) {
+  try {
+    assertRewritable(settings);
+    return { rewritable: true };
+  } catch (e) {
+    if (e instanceof BadSettings) return { rewritable: false, message: e.message };
+    throw e;
+  }
+}
+
 function buildCheck(env, settings, version) {
   const command = isObj(settings.data.statusLine) ? settings.data.statusLine.command : undefined;
   const cmd = typeof command === 'string' ? command : '';
@@ -236,9 +248,10 @@ function buildCheck(env, settings, version) {
   const loaded = loadConfig(env);
   const snapshots = readSnapshotFacts(env);
   const offers = [];
-  if (!snapshots.rateLimits) {
+  // No snapshot at all is a missing reading, not a plan without limits: offer nothing then.
+  if (snapshots.any && !snapshots.rateLimits) {
     if (loaded.config.gate.enabled !== false) offers.push('gate.enabled=false');
-  } else if (!snapshots.fiveHour && loaded.config.gate.enabled !== false && loaded.config.gate.fiveHour.enabled !== false) {
+  } else if (snapshots.rateLimits && !snapshots.fiveHour && loaded.config.gate.enabled !== false && loaded.config.gate.fiveHour.enabled !== false) {
     offers.push('gate.fiveHour.enabled=false');
   }
   return {
@@ -247,6 +260,7 @@ function buildCheck(env, settings, version) {
     refreshInterval: { current, ok: current === REFRESH },
     config: { exists: fs.existsSync(nestorConfigPath(env)), source: loaded.source, errors: loaded.errors },
     snapshots,
+    settings: rewritability(settings),
     offers,
     gate: evaluateWithConfig({ pathway: 'slow', action: 'orch', env, loaded }),
   };

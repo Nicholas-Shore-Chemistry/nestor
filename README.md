@@ -33,9 +33,9 @@ only during a run.
 The marketplace holds two plugins, `nestor` and `ctx-meter`, and the install of `nestor` pulls in `ctx-meter`.
 `/ctx-meter:setup` wires the statusline that records your usage. `/nestor:setup` refuses to run until that is done,
 which is why the two setups come in this order. After `/ctx-meter:setup`, restart Claude Code fully and send one
-message, so the first usage snapshot exists, and only then run `/nestor:setup`. Run straight after, it can't tell a
-missing snapshot from a plan that has no usage data. If it then offers to switch the gate off and you are on a
-subscription, say no: the snapshot is most likely just missing.
+message, so the first usage snapshot exists, and only then run `/nestor:setup`. Run straight after, it finds no
+snapshot and offers nothing about the gate. If it offers to switch the gate off (snapshots exist but none holds usage
+limits), that fits an API key; on a subscription, say no and ask again after one more message.
 
 `/nestor:setup` checks your Claude Code version, sets `statusLine.refreshInterval` so the usage data keeps refreshing,
 and offers to switch off the gate or its 5-hour part if the snapshots hold no data for them. It backs up
@@ -54,10 +54,10 @@ The session that runs this becomes the controller. It reads the rules, prints yo
 sub-orchestrator for the brief. If the gate says no, the run waits and starts itself when your window resets.
 
 Keep an interactive Claude Code session open for the whole run. The statusline only runs there, and without it the gate
-has no fresh data. A headless run (`claude -p`) writes no usage data. While the last snapshot's 5-hour window is
-still open it gets `NO-DATA`. Once that window has reset, the gate answers GO on old data with no live check, so don't
-rely on the gate there. The first check after a fresh install also gets NO-DATA if no snapshot exists yet. Nobody has
-to sit at the keyboard, but the session has to stay open.
+has no fresh data. A headless run (`claude -p`) writes no usage data, so it gets `NO-DATA`. After a window reset the
+gate also answers `NO-DATA` until a model turn in a session brings a new reading (about a minute). The first check
+after a fresh install gets NO-DATA too if no snapshot exists yet. Nobody has to sit at the keyboard, but the session
+has to stay open.
 
 ## Configure
 

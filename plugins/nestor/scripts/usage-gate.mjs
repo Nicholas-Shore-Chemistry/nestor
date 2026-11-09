@@ -7,7 +7,7 @@
 //                       [--poll-sec n] [--log <file>]
 //
 // Verdicts (stdout, one JSON line): GO (exit 0), NO-START (10), STOP (11), NO-DATA (12), ERROR (2).
-// With --wait the script blocks until GO (exit 0) or the max wait (TIMEOUT, exit 3).
+// With --wait the script blocks until GO (exit 0), or, when the window resets during the wait, NO-DATA (exit 12), or the max wait (TIMEOUT, exit 3).
 // Run --wait in the background so the waiting costs no model turns.
 import fs from 'node:fs';
 import path from 'node:path';
@@ -24,6 +24,8 @@ export const HINTS = {
   stale: 'Snapshots refresh only while a session runs with statusLine.refreshInterval set; run /nestor:setup.',
   noFiveHour: 'If your plan has no 5h limit, set gate.fiveHour.enabled=false with /nestor:config.',
   noWindows: 'No usage windows found; set gate.enabled=false with /nestor:config to run without the gate.',
+  needsReading:
+    'Any model turn in a session brings a new reading within about a minute; take a turn, then run the gate again.',
 };
 
 const ACTIONS = ['orch', 'worker', 'opus'];
@@ -54,8 +56,9 @@ function readSnapshots(dir) {
 
 // One rate-limit window (five_hour or seven_day) across all snapshots.
 // Usage only rises inside a window, so among snapshots of the newest window take the max.
-// A window whose resets_at has passed has reset: count it as 0 %. Its own freshness (newest
-// snapshot holding the window) is kept in data_fresh/data_age_s for callers that need it.
+// A window whose resets_at has passed has reset, but usage may have been spent since (another
+// session, claude.ai): it is no reading of the current window. It comes back with passed: true
+// and the caller asks for a new reading. data_fresh/data_age_s describe the newest snapshot.
 function windowReading(snaps, key, now, freshMs) {
   const rows = snaps
     .map(({ s, t }) => ({
@@ -71,7 +74,7 @@ function windowReading(snaps, key, now, freshMs) {
     return {
       pct: 0,
       reset: null,
-      fresh: true,
+      fresh: false,
       age_s: null,
       passed: true,
       data_fresh: isFresh(newestT, now, freshMs),
@@ -107,6 +110,7 @@ export function evaluate({ pathway = 'slow', action = 'worker', now = Date.now()
     fresh: false,
     age_s: null,
     kill_workers: false,
+    needs_reading: false,
     five_hour_enabled: config?.gate?.fiveHour?.enabled !== false,
     config_source: configSource,
   };
@@ -130,15 +134,22 @@ export function evaluate({ pathway = 'slow', action = 'worker', now = Date.now()
   // With the 5h switch off, freshness, resets_at and wait_min come from the weekly reading.
   const res = { ...base, five_hour: five?.pct ?? null, seven_day: week?.pct ?? null, ...fromWindow(fiveOn ? five : week) };
   const noData = (reason, hint) => ({ ...res, verdict: 'NO-DATA', reason, hint });
+  const needsReading = (what) => ({
+    ...res,
+    verdict: 'NO-DATA',
+    reason: `no reading since the ${what} reset`,
+    hint: HINTS.needsReading,
+    needs_reading: true,
+    fresh: false,
+  });
 
   if (!snaps.length) return noData('no snapshot with rate limits', HINTS.noData);
 
   if (!fiveOn) {
     if (!week) return noData('no weekly window in rate limits', HINTS.noWindows);
+    // A passed weekly reset says nothing about usage since, however fresh the snapshot is.
+    if (week.passed) return needsReading('weekly');
     if (!week.fresh) return noData('snapshot stale', HINTS.stale);
-    // A passed weekly reset says nothing about usage since: the reading itself must be fresh.
-    if (week.passed && !week.data_fresh)
-      return { ...noData('snapshot stale', HINTS.stale), fresh: false, age_s: week.data_age_s };
     if (week.pct >= wk.stop) return { ...res, verdict: 'STOP', reason: `7d ${week.pct}% >= ${wk.stop}% (weekly stop; 5h off)` };
     if (week.pct >= wk.start)
       return { ...res, verdict: 'NO-START', reason: `7d ${week.pct}% >= ${wk.start}% (weekly start; 5h off)` };
@@ -146,6 +157,8 @@ export function evaluate({ pathway = 'slow', action = 'worker', now = Date.now()
   }
 
   if (!five) return week ? noData('no 5h window in rate limits', HINTS.noFiveHour) : noData('no usage windows in rate limits', HINTS.noWindows);
+  if (five.passed) return needsReading('5h');
+  if (week?.passed) return needsReading('weekly');
   if (!five.fresh) return noData('snapshot stale', HINTS.stale);
 
   res.kill_workers = five.pct >= config.fiveHour.killWorkers;
@@ -185,6 +198,12 @@ export function evaluateWithConfig({ pathway, action, now = Date.now(), env = pr
 export function pollDelayMs(pollSec) {
   const ms = Number(pollSec) * 1000;
   return Number.isFinite(ms) ? Math.min(Math.max(ms, 100), 2_147_483_647) : 100;
+}
+
+/** Sleep for one --wait poll: the poll delay, but never past the time left before maxWaitMin. */
+export function waitDelayMs(pollSec, remainingMs) {
+  const left = Number.isFinite(remainingMs) ? Math.max(remainingMs + 50, 100) : Infinity;
+  return Math.min(pollDelayMs(pollSec), left);
 }
 
 const CODES = { GO: 0, 'NO-START': 10, STOP: 11, 'NO-DATA': 12, ERROR: 2, TIMEOUT: 3 };
@@ -244,14 +263,19 @@ export async function runCli(argv = process.argv.slice(2), env = process.env) {
   let res = check();
   log(a.log, res);
   if (a.wait) {
+    // A reset that passes during the wait ends it at once: a waiting session makes no turns, so
+    // only the caller's next turn can bring the new reading. If the first check already needed a
+    // reading, the caller has just taken a turn: keep polling as for any other verdict.
+    const firstNeeded = res.needs_reading === true;
     while (res.verdict !== 'GO' && res.verdict !== 'ERROR') {
+      if (res.needs_reading && !firstNeeded) break;
       if (Date.now() - started > a.maxWaitMin * 60_000) {
         res = { ...res, verdict: 'TIMEOUT', waited_min: Math.round((Date.now() - started) / 60_000) };
         log(a.log, res);
         process.stdout.write(JSON.stringify(res) + '\n');
         return 3;
       }
-      await new Promise((r) => setTimeout(r, pollDelayMs(a.pollSec)));
+      await new Promise((r) => setTimeout(r, waitDelayMs(a.pollSec, a.maxWaitMin * 60_000 - (Date.now() - started))));
       res = check();
     }
     res = { ...res, waited_min: Math.round((Date.now() - started) / 60_000) };

@@ -260,9 +260,14 @@ test('atomic write leaves no temp file behind', () => {
   assert.deepEqual(all.filter((n) => n.includes('tmp')), []);
 });
 
-test('offer gate.enabled=false without rate_limits', () => {
+test('WP4.4-C2: no offer at all while no snapshot exists', () => {
   const d = fixture();
-  assert.deepEqual(run(d, ['--check', ...CV]).json.offers, ['gate.enabled=false']);
+  const j = run(d, ['--check', ...CV]).json;
+  assert.equal(j.snapshots.any, false);
+  assert.deepEqual(j.offers, []);
+});
+
+test('offer gate.enabled=false when snapshots exist and none holds rate_limits', () => {
   const d2 = fixture({ snaps: [null] });
   const j = run(d2, ['--check', ...CV]).json;
   assert.equal(j.snapshots.any, true);
@@ -444,6 +449,42 @@ test('a number a rewrite would change refuses with exit 2 and writes nothing', (
   const d2 = fixture({ settings: ok });
   assert.equal(run(d2, ['--apply', ...CV]).code, 0);
   assert.equal(readSettings(d2).s, '12345678901234567890');
+});
+
+test('WP4.3 MINOR: a number that overflows to Infinity refuses with exit 2 and writes nothing', () => {
+  const huge = settingsText().replace('"theme": "dark"', '"theme": "dark", "big": 1e400');
+  const d = fixture({ settings: huge });
+  const before = hashDir(d);
+  const r = run(d, ['--apply', ...CV]);
+  assert.equal(r.code, 2, r.err);
+  assert.match(r.err, /1e400/);
+  assert.equal(hashDir(d), before);
+  // teardown refuses the same way
+  const d2 = fixture();
+  run(d2, ['--apply', ...CV]);
+  fs.writeFileSync(settingsFile(d2), fs.readFileSync(settingsFile(d2), 'utf8').replace('"theme": "dark"', '"theme": "dark", "big": 1e400'));
+  const before2 = hashDir(d2);
+  assert.equal(run(d2, ['--teardown']).code, 2);
+  assert.equal(hashDir(d2), before2);
+});
+
+test('WP4.3 NIT 3: check reports settings.rewritable, with the apply message when false', () => {
+  const ok = run(fixture({ snaps: [both()] }), ['--check', ...CV]);
+  assert.deepEqual(ok.json.settings, { rewritable: true });
+  const big = settingsText().replace('"theme": "dark"', '"theme": "dark", "big": 12345678901234567890');
+  const d = fixture({ settings: big });
+  const before = hashDir(d);
+  const bad = run(d, ['--check', ...CV]);
+  assert.equal(bad.code, 0);
+  assert.equal(bad.json.settings.rewritable, false);
+  assert.match(bad.json.settings.message, /12345678901234567890/);
+  assert.equal(hashDir(d), before);
+  const apply = run(d, ['--apply', ...CV]);
+  assert.ok(apply.err.includes(bad.json.settings.message), 'check shows the message apply refuses with');
+  const keys = fixture({ settings: settingsText().replace('"A": "1"', '"10": "a", "2": "b"') });
+  assert.equal(run(keys, ['--check', ...CV]).json.settings.rewritable, false);
+  const inf = fixture({ settings: settingsText().replace('"theme": "dark"', '"theme": "dark", "big": 1e400') });
+  assert.equal(run(inf, ['--check', ...CV]).json.settings.rewritable, false);
 });
 
 test('integer-like keys refuse with exit 2 and write nothing', () => {

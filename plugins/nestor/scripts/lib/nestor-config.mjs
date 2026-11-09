@@ -92,7 +92,7 @@ export function diffFromDefaults(config) {
   return walk(DEFAULTS, config);
 }
 
-function unknownKeys(def, part, prefix = '', out = []) {
+export function unknownKeys(def, part, prefix = '', out = []) {
   if (!isPlainObject(part)) return out;
   for (const [k, v] of Object.entries(part)) {
     const key = prefix ? `${prefix}.${k}` : k;

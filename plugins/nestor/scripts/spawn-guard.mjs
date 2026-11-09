@@ -34,8 +34,8 @@ export function denyReason(res, pathway, action) {
   return (
     `NestOr usage gate ${res.verdict} (${res.reason}; pathway ${pathway}, action ${action}). Do not spawn. ` +
     (res.verdict === 'STOP'
-      ? 'Finish the current atomic step, write the handoff, return WAIT (NestOr rules: automatic wait).'
-      : 'Wait with usage-gate.mjs --wait in the background, then retry (NestOr rules: automatic wait).') +
+      ? 'Finish the current atomic step, write the handoff, return WAIT (NestOr rules: automatic wait). A controller stops and tells the user.'
+      : 'Do not retry or work around it: stop and tell the user.') +
     (res.hint ? ` ${res.hint}` : '')
   );
 }
