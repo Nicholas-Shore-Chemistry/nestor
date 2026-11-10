@@ -1,9 +1,9 @@
 # NestOr
 
-NestOr is orchestration for Claude Code that watches your plan's usage. You write a brief, and a main session hands
-the work to sub-orchestrators, workers and reviewers. A usage gate checks your 5-hour and weekly limits before every
-spawn, and waits for the window to reset when you are over. It is for people who run long, unattended Claude Code jobs
-and don't want them to burn through a plan limit in the first hour.
+NestOr lets you start a long Claude Code job and walk away. A usage gate checks your 5-hour and weekly limits before
+every spawn, so the job stops short of them and picks up by itself after the window resets. You write a brief; a main
+session hands the work to sub-orchestrators, workers and reviewers. The work is split into small pieces, and reviewers
+check each task or bundle. If the gate can't read your usage, it denies the spawn instead of letting it through.
 
 ## What you get
 
@@ -61,18 +61,21 @@ has to stay open.
 
 ## Configure
 
-Every number and switch lives in one file, `nestor/config.json` in your Claude config folder. It holds only what you
-changed. `/nestor:config` starts from a preset:
+Type `/nestor:config`. It shows what is set, offers a preset and walks you through the rest. Everything lives in one
+file, `nestor/config.json` in your Claude config folder, which holds only what you changed.
 
-- Standard keeps every default.
-- No 5h limit (Ultra) switches the 5-hour check off, for plans that have no 5-hour limit. The weekly limits still apply.
-- Custom goes through the settings group by group.
+Skip the questions by adding a word:
 
-Standard and No 5h limit replace the whole file, so earlier changes are lost.
+- `/nestor:config show` prints every value and says whether it comes from the file or is a default.
+- `/nestor:config standard` keeps every default.
+- `/nestor:config ultra` switches the 5-hour check off, for plans that have no 5-hour limit. The weekly limits still
+  apply.
+- `/nestor:config reset` empties the file, so every value is its default.
 
-In a terminal you can run `node <root>/scripts/config.mjs`. How to find `<root>` is in
-[docs/how-it-works.md](docs/how-it-works.md#finding-the-scripts). The script also takes `--show`,
-`--set <key>=<value>`, `--reset [<key>]` and `--print`. The defaults are listed once, in the same page.
+Presets and reset replace your earlier changes. If the file holds any, or can't be read cleanly, the skill asks before
+it goes on. Without a word, you can also pick Custom and go through the settings group by group.
+
+The defaults, and how to run the script from a terminal, are in [docs/how-it-works.md](docs/how-it-works.md#the-config-file).
 
 ## What the guard does and doesn't
 

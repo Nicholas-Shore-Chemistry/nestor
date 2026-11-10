@@ -224,7 +224,10 @@ lives in briefs and skills that load only when needed.
 ## The config file
 
 All numbers and switches live in one file, `<config>/nestor/config.json`. It holds only what differs from the
-defaults, so a new default reaches you unless you overrode it. Change it with `/nestor:config`, or with the script:
+defaults, so a new default reaches you unless you overrode it. Change it with `/nestor:config`. It takes one optional
+word: `show`, `standard`, `ultra` or `reset`. The word must match exactly (trimmed, in lower case). `standard`, `ultra`
+and `reset` ask first when the file holds values you set, or when `--show` prints a warning or an error. Any other word
+is refused with this list, and the normal questions follow. Or use the script:
 
 ```
 node <root>/scripts/config.mjs                      # asks, group by group (needs a terminal)

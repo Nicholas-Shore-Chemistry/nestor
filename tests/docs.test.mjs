@@ -74,7 +74,7 @@ test('README install commands match the marketplace and plugin names', () => {
     assert.ok(readme.includes(a), a);
     assert.ok(fs.existsSync(path.join(ROOT, 'plugins', 'nestor', 'agents', `${a.split(':')[1]}.md`)), a);
   }
-  for (const p of ['Standard', 'No 5h limit (Ultra)', 'Custom']) assert.ok(readme.includes(p), p);
+  for (const p of ['/nestor:config show', '/nestor:config standard', '/nestor:config ultra', '/nestor:config reset', 'Custom']) assert.ok(readme.includes(p), p);
 });
 
 test('every /nestor:<skill> named in docs exists under plugins/nestor/skills', () => {
