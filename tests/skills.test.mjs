@@ -16,8 +16,32 @@ test('run skill pre-approves only named scripts', () => {
     'Bash(node "${CLAUDE_PLUGIN_ROOT}/scripts/config.mjs" *)',
     'Bash(node "${CLAUDE_PLUGIN_ROOT}/scripts/usage-gate.mjs" *)',
     'Bash(node "${CLAUDE_PLUGIN_ROOT}/scripts/ctx.mjs" *)',
+    'Read(${CLAUDE_PLUGIN_ROOT}/rules/*)',
   ]);
   assert.equal(bash.length, 3);
+});
+
+test('every Read grant of every skill is scoped to the plugin rules folder', () => {
+  const allowed = 'Read(${CLAUDE_PLUGIN_ROOT}/rules/*)';
+  for (const n of fs.readdirSync(path.join(PLUGIN, 'skills'))) {
+    for (const t of splitTools(loadSkill(n).front['allowed-tools'])) {
+      if (!/^(Read|Edit|Write|Glob|Grep)/.test(t)) continue;
+      assert.equal(t, allowed, `${n}: ${t}`);
+      assert.ok(!t.includes('..') && !t.includes('**'), `${n}: ${t} is broad`);
+    }
+  }
+  assert.ok(splitTools(run.front['allowed-tools']).includes(allowed));
+});
+
+test('every plugin file an agent or skill reads is under rules/ and covered by the run grant', () => {
+  const rulesReads = [...fs.readFileSync(path.join(PLUGIN, 'agents', 'nestor.md'), 'utf8').matchAll(/\$\{CLAUDE_PLUGIN_ROOT\}\/rules\/[\w.-]+/g)];
+  assert.ok(rulesReads.length >= 2);
+  const body = run.body;
+  for (const m of rulesReads) assert.ok(body.includes(m[0]), m[0]);
+  for (const f of ['grunt', 'worker']) {
+    const t = fs.readFileSync(path.join(PLUGIN, 'agents', `${f}.md`), 'utf8');
+    assert.ok(!/Read[^.\n]*\$\{CLAUDE_PLUGIN_ROOT\}\/(?!rules\/)/.test(t), `${f}.md reads outside rules/`);
+  }
 });
 
 test('run skill gates before the first spawn, the grunt included', () => {

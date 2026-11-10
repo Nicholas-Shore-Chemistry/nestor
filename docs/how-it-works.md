@@ -116,6 +116,14 @@ Two limits to know:
 Setting `NESTOR_GUARD_LOG` to a file name makes the guard append one line per tagged spawn (time, agent type, action,
 verdict, the first lines of the prompt). It is off by default.
 
+## What the run skill pre-approves
+
+`/nestor:run` pre-approves three scripts, `config.mjs`, `usage-gate.mjs` and `ctx.mjs`, each by its exact path, and a
+read of `${CLAUDE_PLUGIN_ROOT}/rules/*`, the plugin's own rules files and nothing else. The read grant is what lets the
+controller and the NestOr agent open `core.md` and `workflow.md` without a prompt on a fresh install. Claude Code applies
+a skill's `allowed-tools` to the agents the skill spawns, so one entry covers both. There is no bare `Read`, no bare
+`Bash` and no wildcard that leaves the plugin folder.
+
 ## Context caps
 
 Every agent's context is re-read on every turn, so the caps keep it short. `ctx.mjs` reports an agent's context size

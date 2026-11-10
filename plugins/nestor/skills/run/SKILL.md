@@ -3,7 +3,7 @@ name: run
 description: Start a NestOr run from a brief file. Only you can start it.
 argument-hint: <brief path>
 disable-model-invocation: true
-allowed-tools: Bash(node "${CLAUDE_PLUGIN_ROOT}/scripts/config.mjs" *), Bash(node "${CLAUDE_PLUGIN_ROOT}/scripts/usage-gate.mjs" *), Bash(node "${CLAUDE_PLUGIN_ROOT}/scripts/ctx.mjs" *)
+allowed-tools: Bash(node "${CLAUDE_PLUGIN_ROOT}/scripts/config.mjs" *), Bash(node "${CLAUDE_PLUGIN_ROOT}/scripts/usage-gate.mjs" *), Bash(node "${CLAUDE_PLUGIN_ROOT}/scripts/ctx.mjs" *), Read(${CLAUDE_PLUGIN_ROOT}/rules/*)
 ---
 
 # NestOr run
@@ -18,4 +18,4 @@ In the rules, `<root>` is `${CLAUDE_PLUGIN_ROOT}`. You are the controller of thi
 6. Spawn the sub-orchestrator with `subagent_type: nestor:nestor`. Its prompt holds, in this order, `NESTOR-RUN: <project> PATHWAY: <p>`, `NESTOR-TAG: <project>-<wp>-n<k>-<4 hex>`, the config block, and the brief path.
 7. Handle the return words, the waits and the context caps as `core.md` and `workflow.md` say. For your own context, run `node "${CLAUDE_PLUGIN_ROOT}/scripts/ctx.mjs" --session-id ${CLAUDE_SESSION_ID}` after every sub-orchestrator report and every merge (`core.md` §5). A denied spawn is final: stop and tell the user.
 
-Troubleshooting: if the plugin path contains a `)` (a Windows user name can), the exact-script `allowed-tools` entries do not match. This fails safe: Claude Code asks before each script call. Nothing else breaks.
+Troubleshooting: if the plugin path contains a `)` (a Windows user name can), the `allowed-tools` entries (the three scripts and the `rules/` read) do not match. This fails safe: Claude Code asks before each script call and each read of a rules file. Nothing else breaks.
