@@ -53,7 +53,9 @@ node <root>/scripts/usage-gate.mjs --path <slow|fast> --action <orch|worker|opus
 ```
 
 `--action` is `orch` for a new sub-orchestrator or a run start, `opus` for an Opus agent, and `worker` for everything
-else. The script prints one JSON line with `verdict`, `reason`, `hint`, `resets_at`, `wait_min` and `kill_workers`.
+else. The script prints one JSON line with `verdict`, `reason`, `hint`, `resets_at`, `wait_min`, `kill_workers` and
+`now`, the time of the reading. With `--log` it creates the log's folder if it is missing, so a fresh project needs no
+`mkdir`. It creates one level only: a path with more missing folders gets no log line, and the verdict is unchanged.
 
 | Verdict | Exit code | Meaning |
 |---|---|---|
@@ -114,7 +116,7 @@ Two limits to know:
   an agent.
 
 Setting `NESTOR_GUARD_LOG` to a file name makes the guard append one line per tagged spawn (time, agent type, action,
-verdict, the first lines of the prompt). It is off by default.
+verdict, the first lines of the prompt). It is off by default. The guard creates the log's folder if it is missing.
 
 ## What the run skill pre-approves
 
@@ -123,6 +125,16 @@ read of `${CLAUDE_PLUGIN_ROOT}/rules/*`, the plugin's own rules files and nothin
 controller and the NestOr agent open `core.md` and `workflow.md` without a prompt on a fresh install. Claude Code applies
 a skill's `allowed-tools` to the agents the skill spawns, so one entry covers both. There is no bare `Read`, no bare
 `Bash` and no wildcard that leaves the plugin folder.
+
+It also allows `Edit` and `Write` on three names in `./orchestration/`, inside the folder where the run starts:
+`HANDOFF-*.md`, `STATUS.md` and `rules.md`. Those hold the handoffs, the status file and the run's shared rules. No
+other file is pre-approved, `CLAUDE.md` included. The gate writes its own log, `orchestration/usage-log.jsonl`.
+
+Everything else needs your own allow rules. NestOr's own steps are single plain commands, its scripts, `git` or
+`sleep <n>`, with no `&&`, pipes, `cd` or `mkdir`. The scripts are already pre-approved by exact path, so you need
+`Bash(sleep:*)` and the git subcommands your briefs use. `Bash(node:*)` is not needed, and it lets an agent run any
+code. The commands a brief asks for (your tests, your build) and edits to project files outside `orchestration/`
+depend on your settings. A headless run (`claude -p`) denies anything that isn't allowed, and the agents stop.
 
 ## Context caps
 

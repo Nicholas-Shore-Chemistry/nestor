@@ -35,14 +35,20 @@ context. So:
   acceptance tests, and explicit boundaries. Hand over files, not history.
 - **Dispatch.** Pick model and effort from §4, within the pathway limits of `core.md` §2, and only after the gate
   says `GO`.
-- **Implement.** The worker writes the code, runs the tests, commits and writes its report to a file. At
-  `worker.stopTurns` turns, or earlier if its context nears autocompact, it stops, writes a handoff file (done, open,
-  next step) and reports. The orchestrator sends a fresh agent with the handoff, never a continuation of the old one.
-  Put these worker rules (the stop with handoff, replies at most 15 lines, filtered test output) into the run's shared
-  rules file (`<project>/orchestration/rules.md`).
+- **Implement.** The worker writes the code, runs the tests, commits and writes its report into its handoff file,
+  `<project>/orchestration/HANDOFF-<wp>-<task>.md` (a reviewer: `HANDOFF-<wp>-review<n>.md`). At `worker.stopTurns`
+  turns, or earlier if its context nears autocompact, it stops, writes the handoff (done, open, next step) and reports.
+  The orchestrator sends a fresh agent with the handoff, never a continuation of the old one.
+  Put these worker rules into the run's shared rules file (`<project>/orchestration/rules.md`): the stop with handoff,
+  replies at most 15 lines, filtered test output, and the command rule. Put the command rule into every worker and
+  reviewer brief as well. The command rule: each command a single plain `node`, `git` or `sleep <n>` command, with no
+  `&&`, `;`, pipes, heredocs, `$(...)`, redirections, `cd` or `VAR=value` prefixes; commit with
+  `git commit -m "<summary>"`, one more `-m "<paragraph>"` per paragraph. Only the controller or a sub-orchestrator
+  writes `rules.md`; workers and reviewers never do.
 - **Verify with scripts first.** Tests, linter and type check through Bash. Filter verbose output to failures
-  (`grep`, a dot reporter, `tail`). Read only the section of a file or log you need. Use a browser only for what only
-  a browser shows, and prefer text extraction over screenshots.
+  (a dot reporter, the runner's own filter flags, or the output written to a file and read in part with the Read
+  tool; a pipe into `grep` or `tail` needs its own allow rule). Read only the section of a file or log you need. Use
+  a browser only for what only a browser shows, and prefer text extraction over screenshots.
 - **Review.** Per task or per bundle (`core.md` §2). The orchestrator re-reviews a small fix from its diff; a larger
   fix round gets a scoped re-review agent.
 - **Fix loop.** Send the exact error to a fix dispatch. At fix round 3, not later, escalate one tier up (Sonnet to
@@ -77,3 +83,9 @@ summaries of earlier tasks, whole plans or diffs in the prompt. Reports go to a 
 - A NestOr skill never pre-approves bare `Bash` or `PowerShell`, or an interpreter prefix such as `Bash(node:*)`. It
   names the exact script as `Bash(node "<root>/scripts/<name>.mjs" *)`, or it pre-approves no shell.
 - A NestOr skill grants `Read` only as `Read(<root>/rules/*)`, never a bare `Read` or a wildcard that leaves the plugin folder.
+  The run skill also grants `Edit` and `Write` on three names in `./orchestration/` only: `HANDOFF-*.md`, `STATUS.md`
+  and `rules.md`. The gate writes its own log; no agent writes it.
+- Every command an agent runs is a single plain command, and NestOr's own steps use only `node`, `git` or
+  `sleep <n>`: no `&&`, `;`, pipes, `$(...)`, redirections, `cd` or `VAR=value` prefixes, no `mkdir`, `ls`,
+  `cat`, `test`, `pwd` or `date`. A fresh install allows little more without a prompt, and a headless run denies the
+  rest. The usage gate creates `orchestration/` itself and prints `now`.

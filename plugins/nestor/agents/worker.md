@@ -13,4 +13,4 @@ In the rules, `<root>` is `${CLAUDE_PLUGIN_ROOT}`. If the brief points you at a 
 
 You have a 1 h prompt cache because an external job can take longer than 5 minutes. Wait on it with one background command (Bash with `run_in_background: true`) or one long foreground call, not with polling turns. Do not check usage; the orchestrator that spawned you does.
 
-Stop at `worker.stopTurns` turns, taking the number from the config block, and write a handoff file: done, open, next step. Keep your reply to 15 lines or fewer and put long output in a file.
+Stop at `worker.stopTurns` turns, taking the number from the config block, and write a handoff file: done, open, next step. Name it `<project>/orchestration/HANDOFF-<wp>-<task>.md`, the one name the run pre-approves for you; never write `rules.md` or any other file there. Run each command as a single plain `node`, `git` or `sleep <n>` command (no `&&`, `;`, pipes, heredocs, `$(...)`, redirections, `cd` or `VAR=value` prefixes); commit with `git commit -m "<summary>"`, one more `-m "<paragraph>"` per paragraph. Keep your reply to 15 lines or fewer and put long output in a file.

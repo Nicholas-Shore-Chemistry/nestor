@@ -3,19 +3,21 @@ name: run
 description: Start a NestOr run from a brief file. Only you can start it.
 argument-hint: <brief path>
 disable-model-invocation: true
-allowed-tools: Bash(node "${CLAUDE_PLUGIN_ROOT}/scripts/config.mjs" *), Bash(node "${CLAUDE_PLUGIN_ROOT}/scripts/usage-gate.mjs" *), Bash(node "${CLAUDE_PLUGIN_ROOT}/scripts/ctx.mjs" *), Read(${CLAUDE_PLUGIN_ROOT}/rules/*)
+allowed-tools: Bash(node "${CLAUDE_PLUGIN_ROOT}/scripts/config.mjs" *), Bash(node "${CLAUDE_PLUGIN_ROOT}/scripts/usage-gate.mjs" *), Bash(node "${CLAUDE_PLUGIN_ROOT}/scripts/ctx.mjs" *), Read(${CLAUDE_PLUGIN_ROOT}/rules/*), Edit(./orchestration/HANDOFF-*.md), Write(./orchestration/HANDOFF-*.md), Edit(./orchestration/STATUS.md), Write(./orchestration/STATUS.md), Edit(./orchestration/rules.md), Write(./orchestration/rules.md)
 ---
 
 # NestOr run
 
-In the rules, `<root>` is `${CLAUDE_PLUGIN_ROOT}`. You are the controller of this run. The brief is `$ARGUMENTS`. The project is the current working directory, and its name is the name of that directory.
+In the rules, `<root>` is `${CLAUDE_PLUGIN_ROOT}`. You are the controller of this run. The brief is `$ARGUMENTS`. The project is the current working directory, and its name is the name of that directory; take both from your environment information, not from a command. In a head line `<project>` is that name; in a path it is that directory. Your session id is `${CLAUDE_SESSION_ID}`.
 
-1. Read `${CLAUDE_PLUGIN_ROOT}/rules/core.md` and `${CLAUDE_PLUGIN_ROOT}/rules/workflow.md` in full with the Read tool. If `<project>/orchestration/rules.md` exists, read it too. `core.md` wins on conflict.
+Every command you run is a single plain command, one of the three scripts named below, `git` or `sleep <n>`: no `&&`, `;`, pipes, `$(...)`, redirections, `cd` or `VAR=value` prefixes, and no `mkdir`, `ls`, `cat`, `test`, `pwd` or `date`. Read files with the Read tool. The run pre-approves writes to three kinds of file only, all in `<project>/orchestration/`: `HANDOFF-*.md`, `STATUS.md` (the status file) and `rules.md`. Write no other file there; the gate writes its own log.
+
+1. Read `${CLAUDE_PLUGIN_ROOT}/rules/core.md` and `${CLAUDE_PLUGIN_ROOT}/rules/workflow.md` in full with the Read tool. Then Read `<project>/orchestration/rules.md`; if it does not exist, go on without it. `core.md` wins on conflict.
 2. Read the brief. Take the pathway from it, and use `slow` if it names none.
 3. Run `node "${CLAUDE_PLUGIN_ROOT}/scripts/config.mjs" --print` once. Keep its block, and put it under the head lines of every spawn prompt. Take every number from that block.
-4. Run the usage gate before every spawn: the first one, each grunt and each sub-orchestrator: `node "${CLAUDE_PLUGIN_ROOT}/scripts/usage-gate.mjs" --path <p> --action orch --log <project>/orchestration/usage-log.jsonl`. If the verdict is not `GO`, follow `core.md` §4.
+4. Run the usage gate before every spawn: the first one, each grunt and each sub-orchestrator: `node "${CLAUDE_PLUGIN_ROOT}/scripts/usage-gate.mjs" --path <p> --action orch --log orchestration/usage-log.jsonl`, with that relative path. The script creates `orchestration/` if it is missing. If the verdict is not `GO`, follow `core.md` §4.
 5. If `grunt.controller` is true and the brief doesn't say `Grunt: off`, spawn your own `nestor:grunt` before the first `nestor:nestor`. Its prompt starts with `NESTOR-RUN: <project> PATHWAY: <p>` and `GRUNT-TAG: controller-grunt1-<4 hex>`, and follows `core.md` §1.1.
-6. Spawn the sub-orchestrator with `subagent_type: nestor:nestor`. Its prompt holds, in this order, `NESTOR-RUN: <project> PATHWAY: <p>`, `NESTOR-TAG: <project>-<wp>-n<k>-<4 hex>`, the config block, and the brief path.
+6. Spawn the sub-orchestrator with `subagent_type: nestor:nestor`. Its prompt holds, in this order, `NESTOR-RUN: <project> PATHWAY: <p>`, `NESTOR-TAG: <project>-<wp>-n<k>-<4 hex>`, `SESSION: <your session id>`, the config block, and the brief path.
 7. Handle the return words, the waits and the context caps as `core.md` and `workflow.md` say. For your own context, run `node "${CLAUDE_PLUGIN_ROOT}/scripts/ctx.mjs" --session-id ${CLAUDE_SESSION_ID}` after every sub-orchestrator report and every merge (`core.md` §5). A denied spawn is final: stop and tell the user.
 
-Troubleshooting: if the plugin path contains a `)` (a Windows user name can), the `allowed-tools` entries (the three scripts and the `rules/` read) do not match. This fails safe: Claude Code asks before each script call and each read of a rules file. Nothing else breaks.
+Troubleshooting: if the plugin path contains a `)` (a Windows user name can), the `allowed-tools` entries (the three scripts and the `rules/` read) do not match. This fails safe: Claude Code asks before each script call and each read of a rules file. The `orchestration/` write grants are relative to the folder the run starts in. Nothing else breaks.

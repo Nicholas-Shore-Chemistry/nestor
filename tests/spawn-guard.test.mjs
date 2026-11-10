@@ -165,3 +165,13 @@ test('hooks.json matches Agent|Task and uses CLAUDE_PLUGIN_ROOT', () => {
     },
   });
 });
+
+test('audit log: a missing parent folder is created', () => {
+  const base = cfgDir([{ five: 30 }]);
+  const log = path.join(base, 'no', 'such', 'dir', 'guard.jsonl');
+  const r = guard(base, { prompt: 'NESTOR-RUN: demo PATHWAY: slow\nGRUNT-TAG: t1', subagent_type: 'nestor:grunt' }, { log });
+  assert.equal(r.out, '');
+  const lines = fs.readFileSync(log, 'utf8').trim().split('\n');
+  assert.equal(lines.length, 1);
+  assert.equal(JSON.parse(lines[0]).verdict, 'GO');
+});

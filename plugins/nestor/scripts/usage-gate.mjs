@@ -9,6 +9,8 @@
 // Verdicts (stdout, one JSON line): GO (exit 0), NO-START (10), STOP (11), NO-DATA (12), ERROR (2).
 // With --wait the script blocks until GO (exit 0), or, when the window resets during the wait, NO-DATA (exit 12), or the max wait (TIMEOUT, exit 3).
 // Run --wait in the background so the waiting costs no model turns.
+// Every verdict line also carries `now` (ISO time), so callers need no `date` command. --log creates
+// the log's parent folder if it is missing (one level only), so callers need no `mkdir`.
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -242,6 +244,11 @@ function parseArgs(argv, config) {
 function log(file, res) {
   if (!file) return;
   try {
+    // A fresh project has no orchestration/ folder yet: create the parent so callers never need mkdir.
+    // One missing level only, so a mistyped path (a name where a folder was meant) fails quietly
+    // instead of planting a stray folder tree.
+    const dir = path.dirname(path.resolve(file));
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir);
     fs.appendFileSync(file, JSON.stringify({ at: new Date().toISOString(), ...res }) + '\n');
   } catch {
     /* logging is best effort */
@@ -255,7 +262,7 @@ export async function runCli(argv = process.argv.slice(2), env = process.env) {
   try {
     a = parseArgs(argv, loaded.config);
   } catch (e) {
-    process.stdout.write(JSON.stringify({ verdict: 'ERROR', reason: e.message }) + '\n');
+    process.stdout.write(JSON.stringify({ verdict: 'ERROR', reason: e.message, now: new Date().toISOString() }) + '\n');
     return 2;
   }
   const check = () => evaluateWithConfig({ pathway: a.pathway, action: a.action, env, loaded });
@@ -272,7 +279,7 @@ export async function runCli(argv = process.argv.slice(2), env = process.env) {
       if (Date.now() - started > a.maxWaitMin * 60_000) {
         res = { ...res, verdict: 'TIMEOUT', waited_min: Math.round((Date.now() - started) / 60_000) };
         log(a.log, res);
-        process.stdout.write(JSON.stringify(res) + '\n');
+        process.stdout.write(JSON.stringify({ ...res, now: new Date().toISOString() }) + '\n');
         return 3;
       }
       await new Promise((r) => setTimeout(r, waitDelayMs(a.pollSec, a.maxWaitMin * 60_000 - (Date.now() - started))));
@@ -281,7 +288,7 @@ export async function runCli(argv = process.argv.slice(2), env = process.env) {
     res = { ...res, waited_min: Math.round((Date.now() - started) / 60_000) };
     log(a.log, res);
   }
-  process.stdout.write(JSON.stringify(res) + '\n');
+  process.stdout.write(JSON.stringify({ ...res, now: new Date().toISOString() }) + '\n');
   return CODES[res.verdict] ?? 2;
 }
 

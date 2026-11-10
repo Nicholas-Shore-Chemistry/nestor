@@ -288,3 +288,49 @@ test('WP4.4-C3: --wait that starts needing a reading ends in TIMEOUT if none arr
   assert.equal(code, 3, out);
   assert.equal(JSON.parse(out.trim()).verdict, 'TIMEOUT');
 });
+
+test('CLI --log creates a missing parent folder (fresh project, no orchestration/ yet)', (t) => {
+  const proj = fs.mkdtempSync(path.join(os.tmpdir(), 'ugp-'));
+  t.after(() => fs.rmSync(proj, { recursive: true, force: true }));
+  const log = path.join(proj, 'orchestration', 'usage-log.jsonl');
+  const r = cli(cfgDir([{ five: 10 }]), ['--path', 'slow', '--action', 'orch', '--log', log]);
+  assert.equal(r.code, 0);
+  const lines = fs.readFileSync(log, 'utf8').trim().split('\n');
+  assert.equal(lines.length, 1);
+  assert.equal(JSON.parse(lines[0]).verdict, 'GO');
+});
+
+test('CLI --log with a relative path creates the folder under the cwd', (t) => {
+  const proj = fs.mkdtempSync(path.join(os.tmpdir(), 'ugr-'));
+  t.after(() => fs.rmSync(proj, { recursive: true, force: true }));
+  const r = spawnSync(process.execPath, [GATE, '--path', 'slow', '--action', 'orch', '--log', 'orchestration/usage-log.jsonl'], {
+    env: { ...process.env, CLAUDE_CONFIG_DIR: cfgDir([{ five: 10 }]) },
+    cwd: proj,
+    encoding: 'utf8',
+  });
+  assert.equal(r.status, 0);
+  assert.ok(fs.statSync(path.join(proj, 'orchestration', 'usage-log.jsonl')).isFile());
+});
+
+test('CLI --log creates one missing level only; a deeper path logs nothing and the verdict stands', (t) => {
+  const proj = fs.mkdtempSync(path.join(os.tmpdir(), 'ugd-'));
+  t.after(() => fs.rmSync(proj, { recursive: true, force: true }));
+  const r = cli(cfgDir([{ five: 10 }]), ['--path', 'slow', '--action', 'orch', '--log', path.join(proj, 'myproj', 'orchestration', 'usage-log.jsonl')]);
+  assert.equal(r.code, 0);
+  assert.equal(r.out.verdict, 'GO');
+  assert.deepEqual(fs.readdirSync(proj), []);
+});
+
+test('CLI ERROR line carries now too', () => {
+  const r = cli(cfgDir([{ five: 10 }]), ['--bogus']);
+  assert.equal(r.out.verdict, 'ERROR');
+  assert.ok(Date.parse(r.out.now));
+});
+
+test('CLI verdict line carries now as an ISO time', () => {
+  const before = Date.now();
+  const r = cli(cfgDir([{ five: 10 }]), ['--path', 'slow', '--action', 'worker']);
+  const now = Date.parse(r.out.now);
+  assert.ok(now >= before - 1000 && now <= Date.now() + 1000, r.out.now);
+  assert.equal(new Date(now).toISOString(), r.out.now);
+});

@@ -52,8 +52,8 @@ Use `GRUNT-TAG:`, never `NESTOR-TAG:`: the spawn guard would gate it as a sub-or
 `TASK <id>: GRUNT-TAG is <tag>. <numbered steps, exact commands, paths, what counts as pass, where long output goes>`.
 The tag is required: the message reaches the grunt under a raw agent id, and the tag tells it the task is yours.
 - Pass conditions need the same care as a brief. Check them against the real state before you send.
-- **Git guard**, for every task that touches a git repo: the first and the last step are both
-  `git branch --show-current && git show -s --oneline HEAD`, and the report quotes both outputs on separate lines,
+- **Git guard**, for every task that touches a git repo: the first and the last steps are both
+  `git branch --show-current`, then `git show -s --oneline HEAD`, and the report quotes both readings on separate lines,
   `GUARD-START: <output>` and `GUARD-END: <output>`; one merged "before and after" line doesn't count. Compare them
   with each other and with the expected branch and HEAD. If the branch changed and the task didn't say so, the task
   has failed, its results don't count, and you restore the branch yourself.
@@ -102,8 +102,8 @@ time is cheap and the 5h window is not. Fast only when the user picks it.
 
 ## 3. Usage gate (5h and 7d)
 The gate reads the plan limits from the statusline snapshots, which refresh without model turns:
-`node <root>/scripts/usage-gate.mjs --path <p> --action <orch|worker|opus> [--wait] [--max-wait-min <n>] --log <project>/orchestration/usage-log.jsonl`
-It prints one JSON line with `verdict`, `reason`, `hint`, `resets_at`, `wait_min` and `kill_workers`. Verdicts: `GO`,
+`node <root>/scripts/usage-gate.mjs --path <p> --action <orch|worker|opus> [--wait] [--max-wait-min <n>] --log orchestration/usage-log.jsonl`
+It prints one JSON line with `verdict`, `reason`, `hint`, `resets_at`, `wait_min`, `kill_workers` and `now`. Verdicts: `GO`,
 `NO-START`, `STOP`, `NO-DATA` (treat as `NO-START`), `TIMEOUT` after `--wait`, and `ERROR` for bad arguments (fix the
 command, never treat it as `GO`). The exit code is zero only for `GO`. `NO-DATA` with `needs_reading: true`: the
 window has reset and no reading of the new one exists yet; any model turn brings one within about a minute.
@@ -153,7 +153,7 @@ a 1 h cache from its last request for `nestor:nestor` (5 min in usage overage), 
 usable window is `cache.warmWindowMin`, which leaves a margin for the gate's refresh and the resume turn.
 - A sub-orchestrator's `WAIT` reply ends with this line, then the word:
   `CACHE: warm-until=<now + cache.warmWindowMin, ISO> reset=<gate resets_at, ISO> wait_min=<n>`.
-  Take `now` from `date -Iseconds` when you write the reply; that reply is your last request.
+  Run the gate once more right before the reply and take its `now`; that reply is your last request.
 - Write `warm-until=none` if your context is at or above `context.subOrchSoftK` (you rotate anyway), if you weren't
   spawned as `nestor:nestor`, or if the account is in overage or on a weekly `STOP`.
 - A fresh sub-orchestrator is spawned only when the wait outlasts the cache window; otherwise the old one carries on.
@@ -173,7 +173,7 @@ agent id and spawn time). Then end with one word on the last line:
 login, fix round 4, a ruling).
 
 ## 7. Recording
-Record the real session id (`CLAUDE_CODE_SESSION_ID`) in the handoff and the project's status file. Never delete files
+Record the controller's session id (its skill names it; a sub-orchestrator reads its prompt's `SESSION:` line) in the handoff and the status file. Never delete files
 outside the brief's scope; list them as open questions instead.
 
 ## 8. Limit of enforcement

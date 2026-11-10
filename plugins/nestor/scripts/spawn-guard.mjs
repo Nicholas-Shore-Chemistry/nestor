@@ -5,6 +5,7 @@
 // Fails open on its own errors: a broken guard must not block normal work. A bad config is not the
 // guard's own error: the config falls back to defaults and the gate still runs.
 import fs from 'node:fs';
+import path from 'node:path';
 
 const TAG = /NESTOR-(RUN|TAG):/;
 
@@ -24,6 +25,7 @@ function audit(input, action, res, prompt) {
       five_hour: res.five_hour ?? null,
       head: prompt.split('\n').slice(0, 2).join(' | ').slice(0, 160),
     };
+    fs.mkdirSync(path.dirname(path.resolve(file)), { recursive: true });
     fs.appendFileSync(file, JSON.stringify(line) + '\n');
   } catch {
     /* fail open */

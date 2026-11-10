@@ -17,15 +17,22 @@ test('run skill pre-approves only named scripts', () => {
     'Bash(node "${CLAUDE_PLUGIN_ROOT}/scripts/usage-gate.mjs" *)',
     'Bash(node "${CLAUDE_PLUGIN_ROOT}/scripts/ctx.mjs" *)',
     'Read(${CLAUDE_PLUGIN_ROOT}/rules/*)',
+    'Edit(./orchestration/HANDOFF-*.md)',
+    'Write(./orchestration/HANDOFF-*.md)',
+    'Edit(./orchestration/STATUS.md)',
+    'Write(./orchestration/STATUS.md)',
+    'Edit(./orchestration/rules.md)',
+    'Write(./orchestration/rules.md)',
   ]);
   assert.equal(bash.length, 3);
 });
 
-test('every Read grant of every skill is scoped to the plugin rules folder', () => {
+test('every file grant of every skill is scoped: the rules read, and orchestration/ writes for run only', () => {
   const allowed = 'Read(${CLAUDE_PLUGIN_ROOT}/rules/*)';
   for (const n of fs.readdirSync(path.join(PLUGIN, 'skills'))) {
     for (const t of splitTools(loadSkill(n).front['allowed-tools'])) {
-      if (!/^(Read|Edit|Write|Glob|Grep)/.test(t)) continue;
+      if (!/^(Read|Edit|Write|Glob|Grep|NotebookEdit)\b/.test(t)) continue;
+      if (n === 'run' && ['Edit(./orchestration/HANDOFF-*.md)', 'Write(./orchestration/HANDOFF-*.md)', 'Edit(./orchestration/STATUS.md)', 'Write(./orchestration/STATUS.md)', 'Edit(./orchestration/rules.md)', 'Write(./orchestration/rules.md)'].includes(t)) continue;
       assert.equal(t, allowed, `${n}: ${t}`);
       assert.ok(!t.includes('..') && !t.includes('**'), `${n}: ${t} is broad`);
     }

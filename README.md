@@ -53,6 +53,10 @@ Optionally look at the limits with `/nestor:config` (below). Then write a brief 
 The session that runs this becomes the controller. It reads the rules, prints your config, checks the gate and spawns a
 sub-orchestrator for the brief. If the gate says no, the run waits and starts itself when your window resets.
 
+NestOr's own steps are single plain commands: its scripts, which the run pre-approves, `git` and `sleep`. The commands
+and edits your brief asks for need your own permission rules. Don't add `Bash(node:*)` for NestOr: it isn't needed and
+lets an agent run any code. See "What the run skill pre-approves" in [docs/how-it-works.md](docs/how-it-works.md).
+
 Keep an interactive Claude Code session open for the whole run. The statusline only runs there, and without it the gate
 has no fresh data. A headless run (`claude -p`) writes no usage data, so it gets `NO-DATA`. After a window reset the
 gate also answers `NO-DATA` until a model turn in a session brings a new reading (about a minute). The first check

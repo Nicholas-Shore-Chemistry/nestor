@@ -103,7 +103,8 @@ test('grunt body has GUARD-START and GUARD-END and ctx.mjs', () => {
   const b = A.grunt.body;
   assert.match(b, /GUARD-START/);
   assert.match(b, /GUARD-END/);
-  assert.match(b, /git branch --show-current && git show -s --oneline HEAD/);
+  assert.match(b, /`git branch --show-current` and then `git show -s --oneline HEAD`, as two separate commands/);
+  assert.doesNotMatch(b, /show-current &&/);
   assert.match(b, /node "\$\{CLAUDE_PLUGIN_ROOT\}\/scripts\/ctx\.mjs" --tag "<your GRUNT-TAG>"/);
   assert.match(b, /ctx=\?/);
 });
