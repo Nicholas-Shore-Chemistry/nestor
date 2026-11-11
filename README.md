@@ -41,6 +41,10 @@ limits), that fits an API key; on a subscription, say no and ask again after one
 and offers to switch off the gate or its 5-hour part if the snapshots hold no data for them. It backs up
 `settings.json` first. If the gate later reports stale data (`NO-DATA`), run `/nestor:setup` again.
 
+Claude Code refreshes an installed plugin only when its version number changes. If you install from a branch or from a
+commit between releases, the code can change while the version stays the same, and `/plugin update` then keeps the old
+cached copy. Uninstall and install again to get the new code.
+
 ## First run
 
 Optionally look at the limits with `/nestor:config` (below). Then write a brief (see
