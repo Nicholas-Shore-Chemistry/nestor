@@ -58,6 +58,14 @@ test('run skill gates before the first spawn, the grunt included', () => {
   assert.ok(gate >= 0 && grunt > gate && subOrch > gate, 'gate, then grunt, then nestor:nestor');
 });
 
+test('run skill sizes and stops its timer, reads HANDOFF-TEXT and stops headless', () => {
+  assert.match(run.body, /`sleep` for `gate\.timerMin` minutes with `run_in_background: true`/);
+  assert.match(run.body, /Once the last return word has arrived, stop your pending timers with `TaskStop`/);
+  assert.match(run.body, /A reply with `HANDOFF-TEXT:` gives the handoff/);
+  assert.match(run.body, /pass it verbatim in the next `RESUME` or spawn prompt; quote it in your final report/);
+  assert.match(run.body, /the gate prints `headless: true`\) write the status file/);
+});
+
 test('run skill checks its own context with ctx.mjs', () => {
   assert.match(run.body, /node "\$\{CLAUDE_PLUGIN_ROOT\}\/scripts\/ctx\.mjs" --session-id \$\{CLAUDE_SESSION_ID\}/);
   assert.match(run.body, /`core\.md` §5/);

@@ -23,6 +23,7 @@ const PLAN_DEFAULTS = {
     shortWaitMin: 20,
     shortWaitChunkMin: 9,
     shortWaitTries: 2,
+    timerMin: 10,
   },
   fiveHour: {
     slow: { orch: 50, worker: 65, opus: 55, stop: 80 },
@@ -67,7 +68,7 @@ test('flatten gives dotted keys', () => {
   assert.equal(f['fiveHour.slow.orch'], 50);
   assert.equal(f['gate.fiveHour.enabled'], true);
   assert.equal(f['agents.subOrchs'], 1);
-  assert.equal(Object.keys(f).length, 39);
+  assert.equal(Object.keys(f).length, 40);
   assert.ok(Object.values(f).every((v) => typeof v === 'number' || typeof v === 'boolean'));
 });
 

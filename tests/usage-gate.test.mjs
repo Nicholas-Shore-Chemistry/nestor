@@ -152,9 +152,9 @@ test('bad action gives ERROR', () => {
 });
 
 // CLI: a temp config dir; fixtures dated from the real clock.
-function cli(base, args) {
+function cli(base, args, extraEnv = {}) {
   const r = spawnSync(process.execPath, [GATE, ...args], {
-    env: { ...process.env, CLAUDE_CONFIG_DIR: base },
+    env: { ...process.env, CLAUDE_CODE_ENTRYPOINT: 'cli', CLAUDE_CONFIG_DIR: base, ...extraEnv },
     encoding: 'utf8',
   });
   return { code: r.status, out: r.stdout.trim() ? JSON.parse(r.stdout) : null, err: r.stderr };
@@ -233,7 +233,7 @@ test('CLI started through a symlinked folder still runs', (t) => {
 test('G1: a huge pollSec still ends the wait in TIMEOUT (exit 3) within about maxWaitMin', () => {
   const t0 = Date.now();
   const r = spawnSync(process.execPath, [GATE, '--wait', '--poll-sec', '1000000', '--max-wait-min', '0.02'], {
-    env: { ...process.env, CLAUDE_CONFIG_DIR: cfgDir([{ five: 70 }]) },
+    env: { ...process.env, CLAUDE_CODE_ENTRYPOINT: 'cli', CLAUDE_CONFIG_DIR: cfgDir([{ five: 70 }]) },
     encoding: 'utf8',
     timeout: 10_000,
   });
@@ -249,9 +249,9 @@ test('G1: waitDelayMs caps the sleep at the time left, with a floor', () => {
 });
 
 // WP4.4-C3 --wait paths. Fixtures are dated from the real clock.
-function runWait(base, args) {
+function runWait(base, args, extraEnv = {}) {
   const child = spawn(process.execPath, [GATE, '--wait', '--poll-sec', '1', ...args], {
-    env: { ...process.env, CLAUDE_CONFIG_DIR: base },
+    env: { ...process.env, CLAUDE_CODE_ENTRYPOINT: 'cli', CLAUDE_CONFIG_DIR: base, ...extraEnv },
   });
   let out = '';
   child.stdout.on('data', (c) => (out += c));
@@ -333,4 +333,81 @@ test('CLI verdict line carries now as an ISO time', () => {
   const now = Date.parse(r.out.now);
   assert.ok(now >= before - 1000 && now <= Date.now() + 1000, r.out.now);
   assert.equal(new Date(now).toISOString(), r.out.now);
+});
+
+// WP4.6 fix 3 (E4): a headless session (claude -p: CLAUDE_CODE_ENTRYPOINT=sdk-cli) never blocks in --wait.
+test('headless: --wait on NO-START returns at once with wait_skipped, never GO', () => {
+  const t0 = Date.now();
+  const r = cli(cfgDir([{ five: 70 }]), ['--path', 'slow', '--action', 'orch', '--wait', '--max-wait-min', '5'], {
+    CLAUDE_CODE_ENTRYPOINT: 'sdk-cli',
+  });
+  assert.equal(r.code, 10, JSON.stringify(r.out));
+  assert.equal(r.out.verdict, 'NO-START');
+  assert.equal(r.out.headless, true);
+  assert.equal(r.out.wait_skipped, 'headless');
+  assert.ok(Date.now() - t0 < 5000);
+});
+
+test('headless: an SDK host entrypoint also counts; STOP is reported with exit 11', () => {
+  const r = cli(cfgDir([{ five: 99 }]), ['--path', 'slow', '--action', 'worker', '--wait'], {
+    CLAUDE_CODE_ENTRYPOINT: 'sdk-ts',
+  });
+  assert.equal(r.code, 11);
+  assert.equal(r.out.verdict, 'STOP');
+  assert.equal(r.out.wait_skipped, 'headless');
+});
+
+test('headless: GO passes through unchanged, without wait_skipped', () => {
+  const r = cli(cfgDir([{ five: 10 }]), ['--path', 'slow', '--action', 'orch', '--wait'], { CLAUDE_CODE_ENTRYPOINT: 'sdk-cli' });
+  assert.equal(r.code, 0);
+  assert.equal(r.out.verdict, 'GO');
+  assert.equal(r.out.headless, true);
+  assert.equal(r.out.wait_skipped, undefined);
+});
+
+test('headless: the skipped wait is logged with its reason', (t) => {
+  const proj = fs.mkdtempSync(path.join(os.tmpdir(), 'ugh-'));
+  t.after(() => fs.rmSync(proj, { recursive: true, force: true }));
+  const log = path.join(proj, 'orchestration', 'usage-log.jsonl');
+  cli(cfgDir([{ five: 70 }]), ['--action', 'orch', '--wait', '--log', log], { CLAUDE_CODE_ENTRYPOINT: 'sdk-cli' });
+  const rows = fs.readFileSync(log, 'utf8').trim().split('\n').map((l) => JSON.parse(l));
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].wait_skipped, 'headless');
+});
+
+test('headless: interactive entrypoints are not headless; NESTOR_HEADLESS_WAIT=1 restores the wait', async () => {
+  const { isHeadless } = await import('../plugins/nestor/scripts/usage-gate.mjs');
+  assert.equal(isHeadless({ CLAUDE_CODE_ENTRYPOINT: 'cli' }), false);
+  assert.equal(isHeadless({}), false);
+  assert.equal(isHeadless({ CLAUDE_CODE_ENTRYPOINT: 'sdk-cli' }), true);
+  const { done } = runWait(cfgDir([{ five: 70 }]), ['--max-wait-min', '0.02'], {
+    CLAUDE_CODE_ENTRYPOINT: 'sdk-cli',
+    NESTOR_HEADLESS_WAIT: '1',
+  });
+  const { code, out } = await done;
+  assert.equal(code, 3, out);
+  assert.equal(JSON.parse(out.trim()).verdict, 'TIMEOUT');
+});
+
+test('headless: NESTOR_HEADLESS_WAIT=1 prints headless: false; other values keep the skip', () => {
+  const dir = cfgDir([{ five: 70 }]);
+  const on = cli(dir, ['--action', 'orch'], { CLAUDE_CODE_ENTRYPOINT: 'sdk-cli', NESTOR_HEADLESS_WAIT: '1' });
+  assert.equal(on.out.headless, false);
+  for (const v of ['0', 'true']) {
+    const r = cli(dir, ['--action', 'orch', '--wait'], { CLAUDE_CODE_ENTRYPOINT: 'sdk-cli', NESTOR_HEADLESS_WAIT: v });
+    assert.equal(r.code, 10, v);
+    assert.equal(r.out.wait_skipped, 'headless', v);
+  }
+});
+
+test('headless: --wait on NO-DATA returns at once with exit 12', () => {
+  const r = cli(cfgDir([]), ['--action', 'orch', '--wait'], { CLAUDE_CODE_ENTRYPOINT: 'sdk-cli' });
+  assert.equal(r.code, 12, JSON.stringify(r.out));
+  assert.equal(r.out.wait_skipped, 'headless');
+});
+
+test('headless: without --wait the verdict is the same as interactive', () => {
+  const r = cli(cfgDir([{ five: 70 }]), ['--action', 'orch'], { CLAUDE_CODE_ENTRYPOINT: 'sdk-cli' });
+  assert.equal(r.code, 10);
+  assert.equal(r.out.wait_skipped, undefined);
 });

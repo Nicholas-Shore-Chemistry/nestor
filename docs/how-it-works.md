@@ -53,8 +53,8 @@ node <root>/scripts/usage-gate.mjs --path <slow|fast> --action <orch|worker|opus
 ```
 
 `--action` is `orch` for a new sub-orchestrator or a run start, `opus` for an Opus agent, and `worker` for everything
-else. The script prints one JSON line with `verdict`, `reason`, `hint`, `resets_at`, `wait_min`, `kill_workers` and
-`now`, the time of the reading. With `--log` it creates the log's folder if it is missing, so a fresh project needs no
+else. The script prints one JSON line with `verdict`, `reason`, `hint`, `resets_at`, `wait_min`, `kill_workers`,
+`headless` and `now`, the time of the reading. With `--log` it creates the log's folder if it is missing, so a fresh project needs no
 `mkdir`. It creates one level only: a path with more missing folders gets no log line, and the verdict is unchanged.
 
 | Verdict | Exit code | Meaning |
@@ -84,6 +84,13 @@ With `--wait` the script polls every `gate.pollSec` seconds until the verdict is
 passed. If the reset passes during the wait, it exits at once with `NO-DATA`: a waiting session makes no turns, so
 only the next turn can bring the new reading. Run it in the background, so the waiting costs no turns. The harness
 wakes the controller when the script exits. That wake-up needs the session to stay open, for the same reason as the snapshots.
+
+A headless session doesn't wait. The gate counts a session as headless when `CLAUDE_CODE_ENTRYPOINT` starts with
+`sdk-`: `claude -p` reports `sdk-cli`, and Agent SDK hosts report `sdk-*` too. Other entrypoints count as
+interactive. There `--wait` prints the verdict at once with `headless: true` and `wait_skipped: "headless"`, and the
+controller writes its resume point, reports the verdict and stops. A foreground wait would hang the caller, and a
+headless run writes no snapshots of its own. Set `NESTOR_HEADLESS_WAIT=1` to keep the wait; the gate then prints
+`headless: false`. An interactive host built on the Agent SDK needs this too.
 
 ## The 5-hour off switch
 
@@ -123,7 +130,8 @@ verdict, the first lines of the prompt). It is off by default. The guard creates
 `/nestor:run` pre-approves three scripts, `config.mjs`, `usage-gate.mjs` and `ctx.mjs`, each by its exact path, and a
 read of `${CLAUDE_PLUGIN_ROOT}/rules/*`, the plugin's own rules files and nothing else. The read grant is what lets the
 controller and the NestOr agent open `core.md` and `workflow.md` without a prompt on a fresh install. Claude Code applies
-a skill's `allowed-tools` to the agents the skill spawns, so one entry covers both. There is no bare `Read`, no bare
+a skill's `allowed-tools` to the agents the skill spawns, so one entry covers both. The grants hold in the skill's own
+turn and for agents started in it while they keep running; a later controller turn or a resumed agent may be denied. There is no bare `Read`, no bare
 `Bash` and no wildcard that leaves the plugin folder.
 
 It also allows `Edit` and `Write` on three names in `./orchestration/`, inside the folder where the run starts:
@@ -285,6 +293,7 @@ of context, and `Min` values are minutes.
 | `gate.shortWaitMin` | `20` | A sub-orchestrator waits in place only if the wait is at most this long. |
 | `gate.shortWaitChunkMin` | `9` | Length of each in-place wait, in minutes. |
 | `gate.shortWaitTries` | `2` | How many in-place waits before handing back `WAIT`. |
+| `gate.timerMin` | `10` | Length of the background timer an orchestrator keeps while it waits for a reply. |
 | `fiveHour.slow.orch` | `50` | Slow pathway: no new orchestrator at or above this 5-hour percentage. |
 | `fiveHour.slow.worker` | `65` | Slow pathway: no new worker at or above this. |
 | `fiveHour.slow.opus` | `55` | Slow pathway: no new Opus agent at or above this. |

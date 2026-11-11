@@ -51,7 +51,7 @@ test('frontmatter per agent matches the spec', () => {
   assert.equal(f('grunt').name, 'grunt');
   assert.equal(f('grunt').model, 'haiku');
   assert.equal(f('grunt').background, 'true');
-  assert.equal(f('grunt').tools, 'Bash, PowerShell, Read, Edit, Write, Glob, Grep');
+  assert.equal(f('grunt').tools, 'Bash, PowerShell, Read, Edit, Write, Glob, Grep, SendMessage, ToolSearch');
   assert.deepEqual(f('grunt').experimental, { cacheTtl: '1h' });
   assert.deepEqual(keys('grunt'), ['background', 'description', 'experimental', 'model', 'name', 'tools']);
   for (const n of Object.keys(A)) assert.ok(f(n).description.length > 20, `${n} description`);
@@ -89,6 +89,20 @@ test('nestor body has the root sentence, the pending-wait lines and the grunt sw
   assert.match(b, /orchestration\/rules\.md/);
   assert.match(b, /`nestor:worker`/);
   assert.match(b, /`nestor:grunt`/);
+});
+
+test('nestor body stops its timers and hands HANDOFF-TEXT to the controller', () => {
+  const b = A.nestor.body;
+  assert.match(b, /`sleep` for `gate\.timerMin` minutes/);
+  assert.match(b, /stop your pending timers with `TaskStop`/);
+  assert.match(b, /under `HANDOFF-TEXT:`/);
+  assert.match(b, /The controller then writes it to the handoff file or passes it to the next sub-orchestrator/);
+});
+
+test('grunt sends SendMessage only to the from id of its task', () => {
+  const b = A.grunt.body;
+  assert.match(b, /Use `SendMessage` only to reply to the `from` id of the task you are doing; never message any other agent\./);
+  assert.match(b, /counts a reply that arrives both ways once/);
 });
 
 test('worker body waits in the background, skips the gate and stops at worker.stopTurns', () => {

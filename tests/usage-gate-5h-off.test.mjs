@@ -75,7 +75,7 @@ test('5h off: stale weekly gives NO-DATA', () => {
 test('5h off: --wait polls until weekly GO', async () => {
   const base = cfgDir([weekOnly(95)], JSON.stringify({ gate: { fiveHour: { enabled: false } } }));
   const child = spawn(process.execPath, [GATE, '--wait', '--poll-sec', '1', '--max-wait-min', '0.25'], {
-    env: { ...process.env, CLAUDE_CONFIG_DIR: base },
+    env: { ...process.env, CLAUDE_CODE_ENTRYPOINT: 'cli', CLAUDE_CONFIG_DIR: base },
   });
   let out = '';
   child.stdout.on('data', (c) => (out += c));

@@ -9,6 +9,10 @@
 // Verdicts (stdout, one JSON line): GO (exit 0), NO-START (10), STOP (11), NO-DATA (12), ERROR (2).
 // With --wait the script blocks until GO (exit 0), or, when the window resets during the wait, NO-DATA (exit 12), or the max wait (TIMEOUT, exit 3).
 // Run --wait in the background so the waiting costs no model turns.
+// In a non-interactive session (claude -p or an SDK host: CLAUDE_CODE_ENTRYPOINT starts with "sdk-") --wait
+// does not block: it prints the verdict at once with headless: true and wait_skipped: "headless", so a
+// headless controller reports and stops instead of hanging. NESTOR_HEADLESS_WAIT=1 restores the wait and
+// then prints headless: false, so the rules wait as in an interactive session.
 // Every verdict line also carries `now` (ISO time), so callers need no `date` command. --log creates
 // the log's parent folder if it is missing (one level only), so callers need no `mkdir`.
 import fs from 'node:fs';
@@ -208,6 +212,11 @@ export function waitDelayMs(pollSec, remainingMs) {
   return Math.min(pollDelayMs(pollSec), left);
 }
 
+/** True in a non-interactive session: claude -p reports CLAUDE_CODE_ENTRYPOINT=sdk-cli, SDK hosts sdk-*. */
+export function isHeadless(env = process.env) {
+  return /^sdk-/.test(String(env.CLAUDE_CODE_ENTRYPOINT ?? ''));
+}
+
 const CODES = { GO: 0, 'NO-START': 10, STOP: 11, 'NO-DATA': 12, ERROR: 2, TIMEOUT: 3 };
 
 function parseArgs(argv, config) {
@@ -267,7 +276,17 @@ export async function runCli(argv = process.argv.slice(2), env = process.env) {
   }
   const check = () => evaluateWithConfig({ pathway: a.pathway, action: a.action, env, loaded });
   const started = Date.now();
-  let res = check();
+  const headless = isHeadless(env) && env.NESTOR_HEADLESS_WAIT !== '1';
+  let res = { ...check(), headless };
+  if (a.wait && headless && res.verdict !== 'GO' && res.verdict !== 'ERROR') {
+    // A foreground wait hangs its caller, and a headless run writes no snapshots of its own, so a long
+    // wait gets fresh readings only while an interactive session is open elsewhere.
+    // Fail safe: never GO here, only the verdict, so the caller writes its resume point and stops.
+    res = { ...res, wait_skipped: 'headless' };
+    log(a.log, res);
+    process.stdout.write(JSON.stringify({ ...res, now: new Date().toISOString() }) + '\n');
+    return CODES[res.verdict] ?? 2;
+  }
   log(a.log, res);
   if (a.wait) {
     // A reset that passes during the wait ends it at once: a waiting session makes no turns, so
@@ -283,7 +302,7 @@ export async function runCli(argv = process.argv.slice(2), env = process.env) {
         return 3;
       }
       await new Promise((r) => setTimeout(r, waitDelayMs(a.pollSec, a.maxWaitMin * 60_000 - (Date.now() - started))));
-      res = check();
+      res = { ...check(), headless };
     }
     res = { ...res, waited_min: Math.round((Date.now() - started) / 60_000) };
     log(a.log, res);

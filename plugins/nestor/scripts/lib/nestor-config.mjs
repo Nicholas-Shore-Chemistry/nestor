@@ -19,6 +19,7 @@ export const DEFAULTS = deepFreeze({
     shortWaitMin: 20,
     shortWaitChunkMin: 9,
     shortWaitTries: 2,
+    timerMin: 10,
   },
   fiveHour: {
     slow: { orch: 50, worker: 65, opus: 55, stop: 80 },

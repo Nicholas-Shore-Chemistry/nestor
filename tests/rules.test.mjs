@@ -39,7 +39,7 @@ test('rules name only keys that exist', () => {
 });
 
 test('rules hold no numbers', () => {
-  const ALLOWED = ['15 lines', 'fix round 3', 'fix round 4', '1 h', '5 min', '5h', '7d'];
+  const ALLOWED = ['15 lines', 'fix round 3', 'fix round 4', '1 h', '5 min', '5h', '7d', 'NESTOR_HEADLESS_WAIT=1'];
   for (const [name, text] of [['core.md', core], ['workflow.md', workflow]]) {
     const stripped = text
       .split('\n')
@@ -59,7 +59,7 @@ test('rules mention the rule-relevant keys', () => {
     'context.subOrchSoftK', 'context.subOrchHardK', 'context.controllerK',
     'cache.warmWindowMin', 'grunt.controller', 'grunt.subOrch', 'grunt.rotateK',
     'grunt.coldIdleMin', 'grunt.coldCtxK', 'worker.stopTurns', 'worker.longWaitMin',
-    'gate.shortWaitMin', 'fiveHour.killWorkers', 'gate.enabled', 'gate.fiveHour.enabled',
+    'gate.shortWaitMin', 'gate.timerMin', 'fiveHour.killWorkers', 'gate.enabled', 'gate.fiveHour.enabled',
   ];
   const present = new Set(spans(both));
   assert.deepEqual(required.filter((k) => !present.has(k)), []);
@@ -70,6 +70,18 @@ test('pending-wait rule present', () => {
   assert.match(core, /run_in_background/);
   assert.match(core, /never end (your|a) turn with nothing pending|don't end your turn with nothing pending/i);
   assert.match(core, /SendMessage. in flight is not pending/);
+});
+
+test('timer stop, HANDOFF-TEXT reader, grunt reply limit and headless rule present', () => {
+  assert.match(core, /`sleep` for `gate\.timerMin` minutes/);
+  assert.match(core, /`TaskStop` your pending timers\s+before the final report/);
+  assert.match(core, /The controller writes that text to `HANDOFF-<wp>\.md`/);
+  assert.match(core, /passes the text verbatim in the next `RESUME` or spawn prompt/);
+  assert.match(core, /quotes the text in its final report/);
+  assert.match(core, /replies by `SendMessage` only to the `from` id of the task/);
+  assert.match(core, /counts once/);
+  assert.match(core, /\*\*Headless\*\*, instead of the above \(the gate prints `headless: true`\)/);
+  assert.match(core, /`NESTOR_HEADLESS_WAIT=1`/);
 });
 
 test('scripts use <root>', () => {
@@ -95,6 +107,6 @@ test('names and heads', () => {
 });
 
 test('length limits', () => {
-  assert.ok(lineCount(core) <= 180, `core.md has ${lineCount(core)} lines`);
+  assert.ok(lineCount(core) <= 195, `core.md has ${lineCount(core)} lines`);
   assert.ok(lineCount(workflow) <= 100, `workflow.md has ${lineCount(workflow)} lines`);
 });

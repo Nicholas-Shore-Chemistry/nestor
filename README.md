@@ -51,7 +51,9 @@ Optionally look at the limits with `/nestor:config` (below). Then write a brief 
 ```
 
 The session that runs this becomes the controller. It reads the rules, prints your config, checks the gate and spawns a
-sub-orchestrator for the brief. If the gate says no, the run waits and starts itself when your window resets.
+sub-orchestrator for the brief. If the gate says no, the run waits and starts itself when your window resets. A
+headless run (`claude -p`) doesn't wait: it writes its resume point, reports the verdict and stops. Set
+`NESTOR_HEADLESS_WAIT=1` to make it wait anyway.
 
 NestOr's own steps are single plain commands: its scripts, which the run pre-approves, `git` and `sleep`. The commands
 and edits your brief asks for need your own permission rules. Don't add `Bash(node:*)` for NestOr: it isn't needed and

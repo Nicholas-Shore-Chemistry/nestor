@@ -63,9 +63,17 @@ The tag is required: the message reaches the grunt under a raw agent id, and the
 **Waiting for a reply (every level that sends `SendMessage`).** A `SendMessage` in flight is not pending: end your
 turn with only that outstanding and the reply is lost.
 - After `SendMessage` to a grunt or to any agent whose reply you need, don't end your turn with nothing pending.
-  First start a background timer (Bash with `run_in_background: true`, a `sleep` sized to the task), then end the
-  turn. The reply arrives as a hand-back message plus a task notification, usually before the timer fires.
-- A timer that fires with no reply means: start another timer. Don't resend the task.
+  First start a background timer (Bash with `run_in_background: true`, `sleep` for `gate.timerMin` minutes), then
+  end the turn. A foreground `sleep` is blocked. A timer that fires with no reply means: start another timer.
+- The grunt replies by `SendMessage` only to the `from` id of the task; it arrives between your tool calls. Its
+  end-of-turn text goes to the main session, so a reply may come twice (message and notification): it counts once.
+- An agent that ends its turn is resumed by the next message and may then lose the run skill's file grants. So a
+  sub-orchestrator sends grunt tasks early, keeps working while they run, and writes its handoff before a turn-ending wait.
+- **Controller:** until every sub-orchestrator has returned a return word (§6), end no turn with nothing pending; after
+  any other notification, start a new timer first. Relay a grunt reply only if the sub-orchestrator reports it never
+  came.
+- Once the last reply you wait for has arrived (the controller: the last return word), `TaskStop` your pending timers
+  before the final report or reply. A headless run exits only when nothing is pending. Never resend a task.
 - The same holds while you wait on any background agent: something must be pending when your turn ends, or a
   sub-orchestrator is forced to hand back and the reply is lost.
 - A "completed" notification from a background grunt is its idle state, not its end. The next `SendMessage` to its
@@ -103,7 +111,7 @@ time is cheap and the 5h window is not. Fast only when the user picks it.
 ## 3. Usage gate (5h and 7d)
 The gate reads the plan limits from the statusline snapshots, which refresh without model turns:
 `node <root>/scripts/usage-gate.mjs --path <p> --action <orch|worker|opus> [--wait] [--max-wait-min <n>] --log orchestration/usage-log.jsonl`
-It prints one JSON line with `verdict`, `reason`, `hint`, `resets_at`, `wait_min`, `kill_workers` and `now`. Verdicts: `GO`,
+It prints one JSON line with `verdict`, `reason`, `hint`, `resets_at`, `wait_min`, `kill_workers`, `headless` and `now`. Verdicts: `GO`,
 `NO-START`, `STOP`, `NO-DATA` (treat as `NO-START`), `TIMEOUT` after `--wait`, and `ERROR` for bad arguments (fix the
 command, never treat it as `GO`). The exit code is zero only for `GO`. `NO-DATA` with `needs_reading: true`: the
 window has reset and no reading of the new one exists yet; any model turn brings one within about a minute.
@@ -125,6 +133,9 @@ The user can start a run at any time. If the gate says no, the run waits for the
   --wait` in the background (Bash, `run_in_background: true`; longest wait `gate.maxWaitMin`). The harness wakes you
   when it exits: no `/loop`, scheduled wake-ups or polling turns. `GO`: spawn. `TIMEOUT`: `BLOCKED`, tell the user.
   After a reset `--wait` ends with `NO-DATA`: run `--wait` once more with a short `--max-wait-min` for the new reading, then spawn on `GO`.
+- **Headless**, instead of the above (the gate prints `headless: true`): don't wait. Not `GO`: write the resume point
+  into the status file (if denied, into the report), report the verdict, `reason` and `resets_at`, and stop.
+  `--wait` there returns at once (`wait_skipped`). With `NESTOR_HEADLESS_WAIT=1` set, the gate prints `headless: false`.
 - On `WAIT` from a sub-orchestrator, read `warm-until` and `reset` from its `CACHE:` line (§4.1):
   - **Warm** (`reset` no later than `warm-until`): background wait with `--max-wait-min` set to the minutes from now
     until `warm-until`. On `GO`, run the gate once more in the foreground, then `SendMessage` the same
@@ -171,6 +182,10 @@ agent id and spawn time). Then end with one word on the last line:
 `WP-DONE` (finished) · `ROTATE` (context cap, §5) · `WAIT` (usage gate, §4; the `CACHE:` line comes right before it) ·
 `LIMIT` (any other wait longer than `worker.longWaitMin`) · `BLOCKED` (needs the user: a gate decision, a secret, a
 login, fix round 4, a ruling).
+A handoff or status write denied after a resume (§1.1) is no reason for `BLOCKED`: put the text in the reply under
+`HANDOFF-TEXT:` and end with the word the work earned. The controller writes that text to `HANDOFF-<wp>.md`; if that
+is denied too, it passes the text verbatim in the next `RESUME` or spawn prompt, where it counts over the file. It
+quotes the text in its final report. A denied status write of its own goes into the report as the resume point.
 
 ## 7. Recording
 Record the controller's session id (its skill names it; a sub-orchestrator reads its prompt's `SESSION:` line) in the handoff and the status file. Never delete files
