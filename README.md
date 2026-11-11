@@ -65,6 +65,12 @@ gate also answers `NO-DATA` until a model turn in a session brings a new reading
 after a fresh install gets NO-DATA too if no snapshot exists yet. Nobody has to sit at the keyboard, but the session
 has to stay open.
 
+Headless runs (`claude -p`) don't yet behave like an interactive session. The usage gate doesn't wait for a reset:
+the run writes its resume point, reports the verdict and stops. Set `NESTOR_HEADLESS_WAIT=1` to get the wait back. The
+tool permissions the run skill grants also last only for the skill's own turn, so later controller turns in a `-p` run
+may be denied. The handoff then arrives in the reply as `HANDOFF-TEXT:` instead of as a file. A later release will fix
+both.
+
 ## Configure
 
 Type `/nestor:config`. It shows what is set, offers a preset and walks you through the rest. Everything lives in one

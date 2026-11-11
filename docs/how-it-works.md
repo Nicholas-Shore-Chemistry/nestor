@@ -86,9 +86,10 @@ only the next turn can bring the new reading. Run it in the background, so the w
 wakes the controller when the script exits. That wake-up needs the session to stay open, for the same reason as the snapshots.
 
 A headless session doesn't wait. The gate counts a session as headless when `CLAUDE_CODE_ENTRYPOINT` starts with
-`sdk-`: `claude -p` reports `sdk-cli`, and Agent SDK hosts report `sdk-*` too. Other entrypoints count as
-interactive. There `--wait` prints the verdict at once with `headless: true` and `wait_skipped: "headless"`, and the
-controller writes its resume point, reports the verdict and stops. A foreground wait would hang the caller, and a
+`sdk-`: `claude -p` reports `sdk-cli`, and Agent SDK hosts report `sdk-*` too. Every other entrypoint, the
+interactive CLI included, counts as interactive and waits as usual. In a headless session `--wait` prints the verdict
+at once with `headless: true` and `wait_skipped: "headless"`, and the controller writes its resume point, reports the
+verdict and stops. A foreground wait would hang the caller, and a
 headless run writes no snapshots of its own. Set `NESTOR_HEADLESS_WAIT=1` to keep the wait; the gate then prints
 `headless: false`. An interactive host built on the Agent SDK needs this too.
 
