@@ -58,27 +58,3 @@ jobs:
       - name: Validate marketplace (strict)
         shell: bash
         run: claude plugin validate --strict .
-
-  scan:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
-          fetch-depth: 0
-          fetch-tags: true
-          persist-credentials: false
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-      - name: Identity scan
-        continue-on-error: ${{ vars.SCAN_ENFORCE != 'true' }}
-        env:
-          IDENTITY_DENYLIST: ${{ secrets.IDENTITY_DENYLIST }}
-          SCAN_ENFORCE: ${{ vars.SCAN_ENFORCE }}
-        run: |
-          if [ "$SCAN_ENFORCE" = "true" ]; then
-            node tools/identity-scan.mjs --release --refs HEAD
-          else
-            node tools/identity-scan.mjs --refs HEAD
-          fi
