@@ -13,34 +13,14 @@ function job(name) {
   return m ? m[0] : '';
 }
 
-// Copy of the scan job taken from main at WP4.5 start (d13c15b). It is the release safety net and must not change.
-const SCAN = `  scan:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: \${{ github.event.pull_request.head.sha || github.sha }}
-          fetch-depth: 0
-          fetch-tags: true
-          persist-credentials: false
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-      - name: Identity scan
-        continue-on-error: \${{ vars.SCAN_ENFORCE != 'true' }}
-        env:
-          IDENTITY_DENYLIST: \${{ secrets.IDENTITY_DENYLIST }}
-          SCAN_ENFORCE: \${{ vars.SCAN_ENFORCE }}
-        run: |
-          if [ "$SCAN_ENFORCE" = "true" ]; then
-            node tools/identity-scan.mjs --release --refs HEAD
-          else
-            node tools/identity-scan.mjs --refs HEAD
-          fi
-`;
+test('ci has jobs test and validate', () => {
+  for (const n of ['test', 'validate']) assert.ok(job(n), `job ${n} missing`);
+});
 
-test('ci has jobs test, validate, scan', () => {
-  for (const n of ['test', 'validate', 'scan']) assert.ok(job(n), `job ${n} missing`);
+// The identity scan served the one-time push from the private repo; maintenance is now public-only.
+test('ci has no identity scan job', () => {
+  assert.equal(job('scan'), '');
+  assert.doesNotMatch(text, /identity-scan|IDENTITY_DENYLIST/);
 });
 
 test('test and validate run on ubuntu-latest and windows-latest', () => {
@@ -75,10 +55,6 @@ test('validate has no continue-on-error and no if: that could skip it', () => {
   assert.doesNotMatch(j, /continue-on-error/);
   assert.doesNotMatch(j, /^\s+if:/m);
   assert.doesNotMatch(j, /\|\|\s*true/);
-});
-
-test('scan job unchanged', () => {
-  assert.equal(job('scan'), SCAN);
 });
 
 test('permissions contents read', () => {
