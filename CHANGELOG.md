@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.1
+
+- Depend on ctx-meter `^0.5.0`. For 0.x versions a caret range stays within the minor version, so `^0.4.0`
+  never resolved ctx-meter 0.5.0 (brief report, faster `ctx-check`, `ctx-check --usage`).
+
 ## 0.1.0
 
 First release.
