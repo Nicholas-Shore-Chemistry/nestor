@@ -123,7 +123,7 @@ window has reset and no reading of the new one exists yet; any model turn brings
 - **The tick.** After every worker report and every merge, one call gives verdict and context:
   `node <root>/scripts/tick.mjs --path <p> --action <orch|worker|opus> --tag "<tag>" --log orchestration/usage-log.jsonl`
   (the controller: `--session-id "<its session id>"` instead of `--tag`). One line, the gate's exit codes:
-  `GO 5h=<n> 7d=<n> reset=<hh:mmZ> wait=<min> ctx=<n>k turns=<n> kill=<flag> now=<ISO to the minute>`. Non-`GO` adds
+  `GO 5h=<n> 7d=<n> reset=<ISO to the minute> wait=<min> ctx=<n>k turns=<n> kill=<flag> now=<ISO to the minute>`. Non-`GO` adds
   `reason="..."`, `NO-DATA` adds the flag `needs_reading` when set, headless the flag `headless`; `ctx=?` means the context check
   failed and the verdict still holds. No separate `ctx.mjs` or gate call for the same event.
 - **Before a spawn** no gate call is needed when your latest tick is `GO`, younger than `gate.freshMin` (compare `now`) and
@@ -174,8 +174,7 @@ a 1 h cache from its last request for `nestor:nestor` (5 min in usage overage), 
 usable window is `cache.warmWindowMin`, which leaves a margin for the gate's refresh and the resume turn.
 - A sub-orchestrator's `WAIT` reply ends with this line, then the word:
   `CACHE: warm-until=<now + cache.warmWindowMin, ISO> reset=<tick reset, ISO> wait_min=<tick wait>`.
-  Tick right before the reply and take `now`, `reset` and `wait` from it (`reset` has `now`'s date, or the next day if
-  earlier); that reply is your last request.
+  Tick right before the reply and take `now`, `reset` and `wait` from it; that reply is your last request.
 - Write `warm-until=none` if your context is at or above `context.subOrchSoftK` (you rotate anyway), if you weren't
   spawned as `nestor:nestor`, or if the account is in overage or on a weekly `STOP`.
 - A fresh sub-orchestrator is spawned only when the wait outlasts the cache window; otherwise the old one carries on.

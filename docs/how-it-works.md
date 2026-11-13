@@ -52,7 +52,7 @@ only old data and answers `NO-DATA`.
 node <root>/scripts/usage-gate.mjs --path <slow|fast> --action <orch|worker|opus> [--wait] [--max-wait-min <n>] [--poll-sec <n>] [--log <file>] [--brief]
 ```
 
-`--brief` prints one short line instead of the JSON: verdict, `5h`, `7d`, `reset` (UTC time), `wait` (minutes), `kill`, `now`,
+`--brief` prints one short line instead of the JSON: verdict, `5h`, `7d`, `reset` (UTC, to the minute), `wait` (minutes), `kill`, `now`,
 and `reason` when the verdict is not `GO`. The JSON stays the default; the hook and scripts use it.
 
 `--action` is `orch` for a new sub-orchestrator or a run start, `opus` for an Opus agent, and `worker` for everything
@@ -156,7 +156,7 @@ codes) and the context check, and prints one line:
 
 ```
 node <root>/scripts/tick.mjs --path <slow|fast> --action <orch|worker|opus> [--tag <tag> | --session-id <id>] [--log <file>] [--json]
-GO 5h=37 7d=17 reset=11:40Z wait=212 ctx=87k turns=41 kill=0 now=2026-11-13T08:28Z
+GO 5h=37 7d=17 reset=2026-11-13T11:40Z wait=212 ctx=87k turns=41 kill=0 now=2026-11-13T08:28Z
 ```
 
 A verdict other than `GO` adds `reason="..."`. `NO-DATA` adds `needs_reading=1` when the window has reset and no

@@ -4,8 +4,8 @@
 //   node tick.mjs --path slow|fast --action orch|worker|opus [--tag <tag> | --session-id <id>]
 //                 [--log <file>] [--json]
 //
-// Default output, one line (at most about 110 bytes on GO):
-//   GO 5h=37 7d=17 reset=11:40Z wait=212 ctx=87k turns=41 kill=0 now=2026-11-13T08:28Z
+// Default output, one line (about 95 bytes on GO):
+//   GO 5h=37 7d=17 reset=2026-11-13T11:40Z wait=212 ctx=87k turns=41 kill=0 now=2026-11-13T08:28Z
 // Non-GO adds reason="..."; NO-DATA adds needs_reading=1 when set; a headless session adds headless=1.
 // A failed context check prints ctx=? and never changes the verdict or the exit code.
 // Exit codes are those of usage-gate.mjs: GO 0, NO-START 10, STOP 11, NO-DATA 12, ERROR 2.

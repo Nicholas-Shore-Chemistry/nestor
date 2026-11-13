@@ -203,18 +203,18 @@ export function evaluateWithConfig({ pathway, action, now = Date.now(), env = pr
 }
 
 const num1 = (x) => (typeof x === 'number' && Number.isFinite(x) ? String(Math.round(x * 10) / 10) : '?');
-const hhmm = (iso) => (typeof iso === 'string' && /T(\d\d:\d\d)/.test(iso) ? RegExp.$1 + 'Z' : '?');
+const minIso = (iso) => (typeof iso === 'string' && /^\d{4}-\d\d-\d\dT\d\d:\d\d/.test(iso) ? iso.slice(0, 16) + 'Z' : '?');
 
 /**
  * One short line for a verdict result, fixed order:
- * `GO 5h=37 7d=17 reset=11:40Z wait=212 [ctx=87k turns=41] kill=0 now=2026-11-13T08:28Z`.
+ * `GO 5h=37 7d=17 reset=2026-11-13T11:40Z wait=212 [ctx=87k turns=41] kill=0 now=2026-11-13T08:28Z`.
  * Non-GO adds `reason="..."`; NO-DATA with needs_reading adds `needs_reading=1`; headless adds `headless=1`.
  * `ctx` is the optional context reading ({ k, turns }, or null for `ctx=?`); omit it (undefined) for no ctx fields.
  */
 export function briefLine(res, now = new Date().toISOString(), ctx) {
   const p = [res.verdict];
   if (res.verdict === 'ERROR') return `ERROR reason=${JSON.stringify(res.reason ?? '')} now=${now.slice(0, 16)}Z`;
-  p.push(`5h=${num1(res.five_hour)}`, `7d=${num1(res.seven_day)}`, `reset=${hhmm(res.resets_at)}`, `wait=${num1(res.wait_min)}`);
+  p.push(`5h=${num1(res.five_hour)}`, `7d=${num1(res.seven_day)}`, `reset=${minIso(res.resets_at)}`, `wait=${num1(res.wait_min)}`);
   if (ctx !== undefined) p.push(ctx ? `ctx=${ctx.k}k turns=${ctx.turns ?? '?'}` : 'ctx=?');
   p.push(`kill=${res.kill_workers ? 1 : 0}`, `now=${now.slice(0, 16)}Z`);
   if (res.verdict === 'NO-DATA' && res.needs_reading) p.push('needs_reading=1');

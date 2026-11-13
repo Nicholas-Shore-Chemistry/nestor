@@ -29,7 +29,7 @@ function tick(base, args = [], env = {}, script = TICK) {
   });
   return { code: r.status, out: r.stdout, err: r.stderr };
 }
-const GO_RE = /^GO 5h=30 7d=40 reset=\d\d:\d\dZ wait=\d+ ctx=87k turns=41 kill=0 now=\d{4}-\d\d-\d\dT\d\d:\d\dZ\n$/;
+const GO_RE = /^GO 5h=30 7d=40 reset=\d{4}-\d\d-\d\dT\d\d:\d\dZ wait=\d+ ctx=87k turns=41 kill=0 now=\d{4}-\d\d-\d\dT\d\d:\d\dZ\n$/;
 
 test('GO: one short line with gate and context, exit 0', () => {
   const r = tick(setup([{ five: 30 }]), ['--path', 'slow', '--action', 'worker', '--tag', 'x']);
