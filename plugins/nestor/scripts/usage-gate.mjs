@@ -4,7 +4,9 @@
 // Facts and a verdict; no model involved.
 //
 //   node usage-gate.mjs --path slow|fast --action orch|worker|opus [--wait] [--max-wait-min n]
-//                       [--poll-sec n] [--log <file>]
+//                       [--poll-sec n] [--log <file>] [--brief]
+//
+// --brief prints one short line instead of the JSON (see briefLine); tick.mjs adds the context fields.
 //
 // Verdicts (stdout, one JSON line): GO (exit 0), NO-START (10), STOP (11), NO-DATA (12), ERROR (2).
 // With --wait the script blocks until GO (exit 0), or, when the window resets during the wait, NO-DATA (exit 12), or the max wait (TIMEOUT, exit 3).
@@ -200,6 +202,27 @@ export function evaluateWithConfig({ pathway, action, now = Date.now(), env = pr
   return { ...res, reason: configNote(loaded) + res.reason };
 }
 
+const num1 = (x) => (typeof x === 'number' && Number.isFinite(x) ? String(Math.round(x * 10) / 10) : '?');
+const minIso = (iso) => (typeof iso === 'string' && /^\d{4}-\d\d-\d\dT\d\d:\d\d/.test(iso) ? iso.slice(0, 16) + 'Z' : '?');
+
+/**
+ * One short line for a verdict result, fixed order:
+ * `GO 5h=37 7d=17 reset=2026-11-13T11:40Z wait=212 [ctx=87k turns=41] kill=0 now=2026-11-13T08:28Z`.
+ * Non-GO adds `reason="..."`; NO-DATA with needs_reading adds `needs_reading=1`; headless adds `headless=1`.
+ * `ctx` is the optional context reading ({ k, turns }, or null for `ctx=?`); omit it (undefined) for no ctx fields.
+ */
+export function briefLine(res, now = new Date().toISOString(), ctx) {
+  const p = [res.verdict];
+  if (res.verdict === 'ERROR') return `ERROR reason=${JSON.stringify(res.reason ?? '')} now=${now.slice(0, 16)}Z`;
+  p.push(`5h=${num1(res.five_hour)}`, `7d=${num1(res.seven_day)}`, `reset=${minIso(res.resets_at)}`, `wait=${num1(res.wait_min)}`);
+  if (ctx !== undefined) p.push(ctx ? `ctx=${ctx.k}k turns=${ctx.turns ?? '?'}` : 'ctx=?');
+  p.push(`kill=${res.kill_workers ? 1 : 0}`, `now=${now.slice(0, 16)}Z`);
+  if (res.verdict === 'NO-DATA' && res.needs_reading) p.push('needs_reading=1');
+  if (res.headless === true) p.push('headless=1');
+  if (res.verdict !== 'GO') p.push(`reason=${JSON.stringify(res.reason ?? '')}`);
+  return p.join(' ');
+}
+
 /** Poll delay for --wait, clamped so it can neither busy-loop nor overflow the timer. */
 export function pollDelayMs(pollSec) {
   const ms = Number(pollSec) * 1000;
@@ -217,7 +240,7 @@ export function isHeadless(env = process.env) {
   return /^sdk-/.test(String(env.CLAUDE_CODE_ENTRYPOINT ?? ''));
 }
 
-const CODES = { GO: 0, 'NO-START': 10, STOP: 11, 'NO-DATA': 12, ERROR: 2, TIMEOUT: 3 };
+export const CODES = { GO: 0, 'NO-START': 10, STOP: 11, 'NO-DATA': 12, ERROR: 2, TIMEOUT: 3 };
 
 function parseArgs(argv, config) {
   const a = {
@@ -227,6 +250,7 @@ function parseArgs(argv, config) {
     maxWaitMin: config.gate.maxWaitMin,
     pollSec: config.gate.pollSec,
     log: null,
+    brief: false,
   };
   const num = (k, v) => {
     const n = Number(v);
@@ -245,12 +269,13 @@ function parseArgs(argv, config) {
     else if (k === '--max-wait-min') a.maxWaitMin = num(k, argv[++i]);
     else if (k === '--poll-sec') a.pollSec = num(k, argv[++i]);
     else if (k === '--log') a.log = val(k, argv[++i]);
+    else if (k === '--brief') a.brief = true;
     else throw new Error(`unknown argument: ${k}`);
   }
   return a;
 }
 
-function log(file, res) {
+export function log(file, res) {
   if (!file) return;
   try {
     // A fresh project has no orchestration/ folder yet: create the parent so callers never need mkdir.
@@ -271,9 +296,14 @@ export async function runCli(argv = process.argv.slice(2), env = process.env) {
   try {
     a = parseArgs(argv, loaded.config);
   } catch (e) {
-    process.stdout.write(JSON.stringify({ verdict: 'ERROR', reason: e.message, now: new Date().toISOString() }) + '\n');
+    const err = { verdict: 'ERROR', reason: e.message, now: new Date().toISOString() };
+    process.stdout.write((argv.includes('--brief') ? briefLine(err, err.now) : JSON.stringify(err)) + '\n');
     return 2;
   }
+  const out = (r) => {
+    const now = new Date().toISOString();
+    process.stdout.write((a.brief ? briefLine(r, now) : JSON.stringify({ ...r, now })) + '\n');
+  };
   const check = () => evaluateWithConfig({ pathway: a.pathway, action: a.action, env, loaded });
   const started = Date.now();
   const headless = isHeadless(env) && env.NESTOR_HEADLESS_WAIT !== '1';
@@ -284,7 +314,7 @@ export async function runCli(argv = process.argv.slice(2), env = process.env) {
     // Fail safe: never GO here, only the verdict, so the caller writes its resume point and stops.
     res = { ...res, wait_skipped: 'headless' };
     log(a.log, res);
-    process.stdout.write(JSON.stringify({ ...res, now: new Date().toISOString() }) + '\n');
+    out(res);
     return CODES[res.verdict] ?? 2;
   }
   log(a.log, res);
@@ -298,7 +328,7 @@ export async function runCli(argv = process.argv.slice(2), env = process.env) {
       if (Date.now() - started > a.maxWaitMin * 60_000) {
         res = { ...res, verdict: 'TIMEOUT', waited_min: Math.round((Date.now() - started) / 60_000) };
         log(a.log, res);
-        process.stdout.write(JSON.stringify({ ...res, now: new Date().toISOString() }) + '\n');
+        out(res);
         return 3;
       }
       await new Promise((r) => setTimeout(r, waitDelayMs(a.pollSec, a.maxWaitMin * 60_000 - (Date.now() - started))));
@@ -307,7 +337,7 @@ export async function runCli(argv = process.argv.slice(2), env = process.env) {
     res = { ...res, waited_min: Math.round((Date.now() - started) / 60_000) };
     log(a.log, res);
   }
-  process.stdout.write(JSON.stringify({ ...res, now: new Date().toISOString() }) + '\n');
+  out(res);
   return CODES[res.verdict] ?? 2;
 }
 

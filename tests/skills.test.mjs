@@ -16,6 +16,7 @@ test('run skill pre-approves only named scripts', () => {
     'Bash(node "${CLAUDE_PLUGIN_ROOT}/scripts/config.mjs" *)',
     'Bash(node "${CLAUDE_PLUGIN_ROOT}/scripts/usage-gate.mjs" *)',
     'Bash(node "${CLAUDE_PLUGIN_ROOT}/scripts/ctx.mjs" *)',
+    'Bash(node "${CLAUDE_PLUGIN_ROOT}/scripts/tick.mjs" *)',
     'Read(${CLAUDE_PLUGIN_ROOT}/rules/*)',
     'Edit(./orchestration/HANDOFF-*.md)',
     'Write(./orchestration/HANDOFF-*.md)',
@@ -24,7 +25,7 @@ test('run skill pre-approves only named scripts', () => {
     'Edit(./orchestration/rules.md)',
     'Write(./orchestration/rules.md)',
   ]);
-  assert.equal(bash.length, 3);
+  assert.equal(bash.length, 4);
 });
 
 test('every file grant of every skill is scoped: the rules read, and orchestration/ writes for run only', () => {
@@ -66,8 +67,8 @@ test('run skill sizes and stops its timer, reads HANDOFF-TEXT and stops headless
   assert.match(run.body, /the gate prints `headless: true`\) write the status file/);
 });
 
-test('run skill checks its own context with ctx.mjs', () => {
-  assert.match(run.body, /node "\$\{CLAUDE_PLUGIN_ROOT\}\/scripts\/ctx\.mjs" --session-id \$\{CLAUDE_SESSION_ID\}/);
+test('run skill checks its own context with tick.mjs', () => {
+  assert.match(run.body, /node "\$\{CLAUDE_PLUGIN_ROOT\}\/scripts\/tick\.mjs" .*--session-id \$\{CLAUDE_SESSION_ID\}/);
   assert.match(run.body, /`core\.md` §5/);
 });
 

@@ -86,7 +86,7 @@ turn with only that outstanding and the reply is lost.
   of waking it; note that as a rotation.
 - A sub-orchestrator's grunt dies with it and is never handed over; a rotated or resumed one spawns its own.
 - The spawn passes the gate (the hook covers it). `SendMessage` bypasses the hook, so before each task your latest
-  gate reading must not be `STOP`. An idle grunt, or one on checks or scripts, takes no worker slot (§2).
+  tick must not be `STOP`. An idle grunt, or one on checks or scripts, takes no worker slot (§2).
 - Its report is facts only. On `FAILED` or `BOUNCED` you decide: fix it yourself, send a worker, or give the grunt
   sharper steps. Never let it retry blind.
 
@@ -111,7 +111,8 @@ time is cheap and the 5h window is not. Fast only when the user picks it.
 ## 3. Usage gate (5h and 7d)
 The gate reads the plan limits from the statusline snapshots, which refresh without model turns:
 `node <root>/scripts/usage-gate.mjs --path <p> --action <orch|worker|opus> [--wait] [--max-wait-min <n>] --log orchestration/usage-log.jsonl`
-It prints one JSON line with `verdict`, `reason`, `hint`, `resets_at`, `wait_min`, `kill_workers`, `headless` and `now`. Verdicts: `GO`,
+It prints one JSON line with `verdict`, `reason`, `hint`, `resets_at`, `wait_min`, `kill_workers`, `headless` and `now`; with `--brief`
+it prints the one-line form instead (below). Verdicts: `GO`,
 `NO-START`, `STOP`, `NO-DATA` (treat as `NO-START`), `TIMEOUT` after `--wait`, and `ERROR` for bad arguments (fix the
 command, never treat it as `GO`). The exit code is zero only for `GO`. `NO-DATA` with `needs_reading: true`: the
 window has reset and no reading of the new one exists yet; any model turn brings one within about a minute.
@@ -119,7 +120,16 @@ window has reset and no reading of the new one exists yet; any model turn brings
 - 5h: start only while usage is below `fiveHour.<p>.<action>`; `STOP` at or above `fiveHour.<p>.stop`.
 - Weekly: no start at or above `weekly.start`; `STOP` at or above `weekly.stop`.
 - `gate.enabled` off: no gate; `gate.fiveHour.enabled` off: no 5h checks.
-- Run the gate **before every spawn, after every worker report and after every merge.**
+- **The tick.** After every worker report and every merge, one call gives verdict and context:
+  `node <root>/scripts/tick.mjs --path <p> --action <orch|worker|opus> --tag "<tag>" --log orchestration/usage-log.jsonl`
+  (the controller: `--session-id "<its session id>"` instead of `--tag`). One line, the gate's exit codes:
+  `GO 5h=<n> 7d=<n> reset=<ISO to the minute> wait=<min> ctx=<n>k turns=<n> kill=<flag> now=<ISO to the minute>`. Non-`GO` adds
+  `reason="..."`, `NO-DATA` adds the flag `needs_reading` when set, headless the flag `headless`; `ctx=?` means the context check
+  failed and the verdict still holds. No separate `ctx.mjs` or gate call for the same event.
+- **Before a spawn** no gate call is needed when your latest tick is `GO`, younger than `gate.freshMin` (compare `now`) and
+  nothing was dispatched since: the spawn guard hook is the check. Otherwise tick first. `usage-gate.mjs` alone (add
+  `--brief` for the short line) is for `--wait` and for a caller without a tag. The foreground check before a `RESUME` by
+  `SendMessage` stays mandatory (§4): the hook does not see it.
 - Every spawn prompt in a run starts with the line `NESTOR-RUN: <project> PATHWAY: <slow|fast>`; a
   sub-orchestrator's prompt also carries `NESTOR-TAG: <tag>`. The spawn guard hook denies such a spawn unless the gate
   says `GO`, so a forgotten check fails safe. A denial is final: never strip the line or reach the spawn another way.
@@ -128,7 +138,7 @@ window has reset and no reading of the new one exists yet; any model turn brings
 The user can start a run at any time. If the gate says no, the run waits for the window to reset, then starts itself.
 
 **Controller**
-- Gate with `--action orch` before the first spawn and before every sub-orchestrator spawn.
+- Tick (§3) with `--action orch` before the first spawn and before every sub-orchestrator spawn, unless §3 lets you skip it.
 - Not `GO`: write the resume point into the project's status file first, then start the gate with `--action orch
   --wait` in the background (Bash, `run_in_background: true`; longest wait `gate.maxWaitMin`). The harness wakes you
   when it exits: no `/loop`, scheduled wake-ups or polling turns. `GO`: spawn. `TIMEOUT`: `BLOCKED`, tell the user.
@@ -138,7 +148,7 @@ The user can start a run at any time. If the gate says no, the run waits for the
   `--wait` there returns at once (`wait_skipped`). With `NESTOR_HEADLESS_WAIT=1` set, the gate prints `headless: false`.
 - On `WAIT` from a sub-orchestrator, read `warm-until` and `reset` from its `CACHE:` line (§4.1):
   - **Warm** (`reset` no later than `warm-until`): background wait with `--max-wait-min` set to the minutes from now
-    until `warm-until`. On `GO`, run the gate once more in the foreground, then `SendMessage` the same
+    until `warm-until`. On `GO`, run a foreground tick (§3) once more, then `SendMessage` the same
     sub-orchestrator: `RESUME: gate GO <hh:mm>, continue from HANDOFF-<wp>.md`, then wait for its reply as in §1.1.
     Don't spawn. On `TIMEOUT` its cache has gone cold: go on as for cold. `NO-DATA` with `needs_reading`: run the short `--wait` first, then as for `GO`.
   - **Cold** (`reset` after `warm-until`, `reset` unknown, or `warm-until=none`): background wait as for a gate that
@@ -146,14 +156,14 @@ The user can start a run at any time. If the gate says no, the run waits for the
   - `SendMessage` gets past the spawn guard, so the foreground gate before a `RESUME` is mandatory.
 
 **Sub-orchestrator**
-- Gate before each dispatch (`--action worker` or `--action opus`).
-- `NO-START` while workers still run: dispatch nothing, wait for their reports, gate again.
+- Tick before each dispatch (`--action worker` or `--action opus`), unless §3 lets you skip it.
+- `NO-START` while workers still run: dispatch nothing, wait for their reports, tick again.
 - `NO-START` with nothing running, or `STOP`: let running workers finish (don't stop them), finish the current atomic
   step, record what merged, write the handoff, and return `WAIT` with the `CACHE:` line (§4.1). The controller waits
   at no cost in turns and decides whether to resume you or spawn a fresh sub-orchestrator.
 - A short wait in place only when the gate's `wait_min` is at most `gate.shortWaitMin`: a foreground `--wait` with
   `--max-wait-min` set to `gate.shortWaitChunkMin` (Bash timeout above that), at most `gate.shortWaitTries` times.
-- On `RESUME`: gate again (`--action worker`), re-read only the handoff and the git log since it, then go on; not the
+- On `RESUME`: tick again (`--action worker`), re-read only the handoff and the git log since it, then go on; not the
   brief.
 
 **Workers** don't check usage. They stop at `worker.stopTurns` turns with a handoff (`workflow.md`).
@@ -163,15 +173,16 @@ A fresh sub-orchestrator re-reads brief, handoff and repo state; a resumed one i
 a 1 h cache from its last request for `nestor:nestor` (5 min in usage overage), 5 min for any other agent type. The
 usable window is `cache.warmWindowMin`, which leaves a margin for the gate's refresh and the resume turn.
 - A sub-orchestrator's `WAIT` reply ends with this line, then the word:
-  `CACHE: warm-until=<now + cache.warmWindowMin, ISO> reset=<gate resets_at, ISO> wait_min=<n>`.
-  Run the gate once more right before the reply and take its `now`; that reply is your last request.
+  `CACHE: warm-until=<now + cache.warmWindowMin, ISO> reset=<tick reset, ISO> wait_min=<tick wait>`.
+  Tick right before the reply and take `now`, `reset` and `wait` from it; that reply is your last request.
 - Write `warm-until=none` if your context is at or above `context.subOrchSoftK` (you rotate anyway), if you weren't
   spawned as `nestor:nestor`, or if the account is in overage or on a weekly `STOP`.
 - A fresh sub-orchestrator is spawned only when the wait outlasts the cache window; otherwise the old one carries on.
 - `kill_workers` true (5h at or above `fiveHour.killWorkers`): `TaskStop` running workers, rebuild from git and reports.
 
 ## 5. Context caps
-Run `node <root>/scripts/ctx.mjs --tag "<tag>"` after every worker report and every merge. Sub-orchestrator: at
+The tick (§3) carries the context reading, `ctx=<n>k`. `node <root>/scripts/ctx.mjs --tag "<tag>"` alone is for a caller
+with no gate, a grunt. Sub-orchestrator: at
 `context.subOrchSoftK` finish the step and rotate; at `context.subOrchHardK` rotate now. Controller: at
 `context.controllerK` write the resume point and end the session.
 
