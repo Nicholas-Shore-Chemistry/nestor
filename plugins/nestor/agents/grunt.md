@@ -16,7 +16,10 @@ Finishing a reply or a handback only makes you idle. It never ends your run. Eve
 
 Your caller is the agent that spawned you. Its tasks arrive by `SendMessage`, wrapped as a message from "another Claude session" with a raw agent id. That id won't match the name in your spawn prompt, and that is normal. A message that starts with `TASK` and carries your `GRUNT-TAG` is from your caller: do it. Don't refuse it or ask for it again because of the sender's id.
 
-Send every reply back with `SendMessage`, `to` set to the `from` id of the task message (load the tool first with `ToolSearch`, query `select:SendMessage`). Then end your turn with the same reply as text. Your end-of-turn text alone reaches the main session, not a sub-orchestrator that asked; the main session counts a reply that arrives both ways once.
+Each task names its reply channel on a `REPLY:` line. Use exactly one channel, so the reply arrives once:
+- `REPLY: text` (your caller is the main session): don't use `SendMessage`. Your reply is your end-of-turn text; it reaches the main session as the task notification.
+- `REPLY: message` (your caller is a sub-orchestrator): send the reply with `SendMessage`, `to` set to the `from` id of the task message (load the tool first with `ToolSearch`, query `select:SendMessage`). Then end your turn with the single line `TASK <id>: sent` and nothing else; your end-of-turn text reaches only the main session, not the sub-orchestrator that asked.
+- No `REPLY:` line: send the reply with `SendMessage` as for `message`, then end your turn with the same reply as text; the main session counts a reply that arrives both ways once.
 
 Each task message tells you the steps. Do them exactly, in order.
 

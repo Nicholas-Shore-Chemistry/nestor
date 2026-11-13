@@ -213,6 +213,38 @@ resumes the same agent with a `RESUME:` message. Otherwise it waits and spawns a
 says `warm-until=none` when the context is already at or past the soft cap, when the agent wasn't spawned as
 `nestor:nestor`, in overage, or on a weekly `STOP`.
 
+### Three wait states
+
+The figures below use the API price ratios: a cache read costs about a tenth of an uncached input token, a cache
+write 1.25 to 2 times as much.
+
+- **Warm resume.** The reset comes before `warm-until`, so the controller waits in the background and resumes the same
+  sub-orchestrator with `RESUME:`. The resume turn reads the context from cache at about a tenth of its size, which is
+  the cheapest way back to work.
+- **Keep-warm.** The reset lies after `warm-until`, `cache.keepWarm` is on and the wait is at most
+  `cache.keepWarmMaxMin`. The controller waits in chunks of `cache.warmWindowMin` and after each sends `KEEPWARM <n>`,
+  which the sub-orchestrator answers with `OK` and nothing else. Each such turn costs about a tenth of its context and
+  renews the 1-hour cache, so a three-hour wait costs the sub-orchestrator about 0.3 of its context against 1.25 or
+  more for a restart; the controller adds two small turns of its own per chunk. The turn runs above
+  the stop line by design, so the rules allow it only while 5-hour usage is at least five points below
+  `fiveHour.killWorkers` and never on a weekly stop; `SendMessage` passes the spawn guard, so nothing else enforces this.
+- **Cold restart.** Anything else (keep-warm off, a longer wait, `warm-until=none`, a failed limit, or a headless
+  run). A fresh sub-orchestrator writes its whole start-up block at the write rate and re-reads brief, handoff and
+  repository, so it costs well over its context size; it is still right when the wait is long or the old context is
+  already large.
+
+Keep-warm ships off. Whether it pays depends on what one keep-warm turn and one fresh start really cost on your plan,
+which has not been measured yet; turn it on with `/nestor:config` (group `cache`) if you want to try it.
+
+### The reply timer
+
+A `SendMessage` in flight is not pending, so an orchestrator that waits for a reply keeps a background `sleep` of
+`gate.timerMin` minutes running. Nothing is checked when it fires; it only keeps the session from ending with nothing
+pending. At 50 minutes it fires inside the 1-hour cache and renews it, and a 2-hour wait costs at most three controller
+turns (it cost twelve at the old 10 minutes). A fired timer with no reply is answered with the next timer call alone.
+A sub-orchestrator needs no timer for the workers it waits on: a running background agent is itself pending and
+notifies when it ends.
+
 ## The grunt
 
 The grunt is a Haiku agent that stays idle in the background and takes one mechanical task at a time by
@@ -225,6 +257,11 @@ It is optional, and little is known about whether it helps, so the defaults are 
 A brief that says `Grunt: off` turns it off for that run, whatever the config says. Results so far come from one
 person's runs, so NestOr makes no claim about what the grunt does for your usage. If you want data of your own, keep
 a log and summarise it.
+
+Each task names its reply channel. The controller writes `REPLY: text`: the grunt sends no `SendMessage`, and its
+end-of-turn text reaches the main session once, as the task notification. A sub-orchestrator writes `REPLY: message`:
+the grunt sends the reply by `SendMessage` and ends its turn with the single line `TASK <id>: sent`, which is all the
+main session sees of it. A task without `REPLY:` gets both, as before.
 
 Every task starts and ends with a git guard: the grunt reports the branch and HEAD it saw first and last, so a task
 that switched branches shows up as failed. A grunt is rotated when its context passes `grunt.rotateK`, and replaced
@@ -296,8 +333,10 @@ node <root>/scripts/config.mjs --print              # the compact block a run pa
 The script checks before it writes, and writes nothing if a check fails (exit code 2). Percentages must be whole
 numbers from 1 to 100, other numbers whole and at least 1. Per pathway, the `orch`, `worker` and `opus` start lines
 must be below `stop`, and `stop` below `fiveHour.killWorkers`. `weekly.start` must be below `weekly.stop`, and
-`context.subOrchSoftK` below `context.subOrchHardK`. It warns, without refusing, when `agents.subOrchs` or an
-`agents.<path>.opus` value is above 1.
+`context.subOrchSoftK` below `context.subOrchHardK`, and `gate.timerMin` below 60, so the timer fires inside the
+1-hour cache. It warns, without refusing, when `agents.subOrchs` or an `agents.<path>.opus` value is above 1, when
+`gate.timerMin` is above `cache.warmWindowMin`, and when `cache.keepWarm` is on with `cache.keepWarmMaxMin` at or below
+`cache.warmWindowMin` (keep-warm would never apply).
 
 If a file on disk is unreadable or breaks these checks anyway, NestOr never opens the gate because of it. Each bad key
 falls back to its default, and the gate's reason says so.
@@ -320,7 +359,7 @@ of context, and `Min` values are minutes.
 | `gate.shortWaitMin` | `20` | A sub-orchestrator waits in place only if the wait is at most this long. |
 | `gate.shortWaitChunkMin` | `9` | Length of each in-place wait, in minutes. |
 | `gate.shortWaitTries` | `2` | How many in-place waits before handing back `WAIT`. |
-| `gate.timerMin` | `10` | Length of the background timer an orchestrator keeps while it waits for a reply. |
+| `gate.timerMin` | `50` | Length of the background timer an orchestrator keeps while it waits for a reply. Below 60. |
 | `fiveHour.slow.orch` | `50` | Slow pathway: no new orchestrator at or above this 5-hour percentage. |
 | `fiveHour.slow.worker` | `65` | Slow pathway: no new worker at or above this. |
 | `fiveHour.slow.opus` | `55` | Slow pathway: no new Opus agent at or above this. |
@@ -336,6 +375,8 @@ of context, and `Min` values are minutes.
 | `context.subOrchHardK` | `150` | A sub-orchestrator rotates at once at this size. |
 | `context.controllerK` | `150` | The controller writes a resume point and ends its session at this size. |
 | `cache.warmWindowMin` | `50` | Minutes after its last request that a sub-orchestrator counts as warm. |
+| `cache.keepWarm` | `false` | Keeps a waiting sub-orchestrator (and the controller) warm with one tiny turn per window instead of letting it go cold. Optional. |
+| `cache.keepWarmMaxMin` | `180` | Longest usage wait that keep-warm covers; longer waits go cold. |
 | `agents.slow.workers` | `2` | Slow pathway: parallel workers at most. |
 | `agents.slow.reviewers` | `1` | Slow pathway: reviewers at a time at most. |
 | `agents.slow.opus` | `1` | Slow pathway: Opus agents below the sub-orchestrator at most. |

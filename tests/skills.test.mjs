@@ -61,6 +61,8 @@ test('run skill gates before the first spawn, the grunt included', () => {
 
 test('run skill sizes and stops its timer, reads HANDOFF-TEXT and stops headless', () => {
   assert.match(run.body, /`sleep` for `gate\.timerMin` minutes with `run_in_background: true`/);
+  assert.match(run.body, /carries `REPLY: text`/);
+  assert.match(run.body, /`core\.md` §4\.2/);
   assert.match(run.body, /Once the last return word has arrived, stop your pending timers with `TaskStop`/);
   assert.match(run.body, /A reply with `HANDOFF-TEXT:` gives the handoff/);
   assert.match(run.body, /pass it verbatim in the next `RESUME` or spawn prompt; quote it in your final report/);
