@@ -1,11 +1,11 @@
 {
   "name": "nestor",
   "displayName": "NestOr",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Usage-aware orchestration for Claude Code: rules, a usage gate, a spawn guard and three agents.",
   "author": { "name": "Nicholas Shore" },
   "license": "MIT",
   "homepage": "https://github.com/Nicholas-Shore-Chemistry/nestor",
   "repository": "https://github.com/Nicholas-Shore-Chemistry/nestor",
-  "dependencies": [{ "name": "ctx-meter", "version": "^0.4.0" }]
+  "dependencies": [{ "name": "ctx-meter", "version": "^0.5.0" }]
 }
