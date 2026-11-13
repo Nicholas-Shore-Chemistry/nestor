@@ -1,4 +1,4 @@
-// Turn arithmetic of the waits in core.md §1.1 and §4 at the shipped defaults.
+// Turn arithmetic of the waits in replies.md and controller.md §2 and §3 at the shipped defaults.
 // A wake-up is a full context read, so each one counts as one turn of the waiting agent.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -6,7 +6,7 @@ import { DEFAULTS, validateConfig } from '../plugins/nestor/scripts/lib/nestor-c
 
 /**
  * Controller waiting for a reply that arrives after `replyMin` minutes, with a background timer of
- * `timerMin` minutes pending (core §1.1). Every timer that fires first is one turn (start the next timer),
+ * `timerMin` minutes pending (replies.md). Every timer that fires first is one turn (start the next timer),
  * the reply is one more. A timer due in the same minute as the reply is stopped in the reply turn.
  */
 export function replyWaitTurns(replyMin, timerMin) {
@@ -16,7 +16,7 @@ export function replyWaitTurns(replyMin, timerMin) {
 }
 
 /**
- * Controller on WAIT with keep-warm (core §4): the gate wait runs in chunks of `chunkMin`; each chunk that ends
+ * Controller on WAIT with keep-warm (controller.md §3): the gate wait runs in chunks of `chunkMin`; each chunk that ends
  * without GO is one controller turn (send KEEPWARM, start the next chunk) and one turn for the OK that comes back.
  * The chunk that ends on GO is one turn. Returns controller turns and keep-warm turns of the sub-orchestrator.
  */

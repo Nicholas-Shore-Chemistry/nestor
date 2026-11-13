@@ -48,8 +48,9 @@ NESTOR-RUN: <project> PATHWAY: <slow|fast>
 ```
 
 A sub-orchestrator's prompt adds `NESTOR-TAG: <project>-<wp>-n<k>-<4 hex>`, and a grunt's has
-`GRUNT-TAG: <caller tag>-grunt<n>-<4 hex>` instead. The config block (`config.mjs --print`) comes right under the head lines,
-then the brief path. The spawn guard acts on the first two tags only. Don't write them into a brief yourself.
+`GRUNT-TAG: <caller tag>-grunt<n>-<4 hex>` instead. The config comes right under the head lines, then the brief path:
+a sub-orchestrator gets its block (`config.mjs --print --role suborch`) and the worker line under it, a worker or
+reviewer only the worker line (`NESTOR-CONFIG worker.stopTurns=<n>`), a grunt nothing. The spawn guard acts on the first two tags only. Don't write them into a brief yourself.
 
 ## Return words
 

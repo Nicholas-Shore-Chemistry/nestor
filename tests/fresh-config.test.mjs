@@ -100,12 +100,9 @@ test('no plugin text tells an agent to write an orchestration/ file outside the 
 
 test('the command rule reaches the worker rules file and every brief', () => {
   const wf = fs.readFileSync(path.join(PLUGIN, 'rules', 'workflow.md'), 'utf8');
-  const nestor = fs.readFileSync(path.join(PLUGIN, 'agents', 'nestor.md'), 'utf8');
-  assert.match(wf, /Put these worker rules into the run's shared rules file[\s\S]*the command rule/);
+  assert.match(wf, /put them into the run's shared rules file[\s\S]*the\s+command rule/);
   assert.match(wf, /command rule into every worker and\s+reviewer brief/);
-  for (const t of [wf, nestor]) {
-    assert.match(t, /heredocs/);
-    assert.match(t, /git commit -m "<summary>"`, one more `-m "<paragraph>"` per paragraph/);
-  }
-  assert.match(nestor, /Every worker and reviewer brief you write carries this rule/);
+  assert.match(wf, /heredocs/);
+  assert.match(wf, /git commit -m "<summary>"`, one more `-m "<paragraph>"`\s+per\s+paragraph/);
+  assert.match(wf, /write only your own handoff in `orchestration\/`, never `rules\.md`/);
 });

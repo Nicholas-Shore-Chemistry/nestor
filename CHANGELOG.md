@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Rules split by role (`core`, `workflow`, `controller`, `grunt-use`, `replies`); `config.mjs --print --role`.
+- Grunt rotation at 60k (`grunt.rotateK`), new `grunt.coldCtxK` 40. The two must satisfy `coldCtxK < rotateK`:
+  a user config that sets only `grunt.coldCtxK` to 60 or more fails that check, and both keys fall back to defaults.
 - `nestor:nestor` and `nestor:worker` now declare a `tools:` list, so they no longer load every tool definition, skill description and deferred tool name at start. Before: `nestor:grunt` about 15.0k, `nestor:worker` about 40.7k subagent tokens. After values are pending live verification. A worker task that needs MCP tools, web access or skills goes to an ordinary agent type.
 
 ## 0.1.1

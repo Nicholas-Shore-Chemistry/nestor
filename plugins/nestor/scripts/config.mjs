@@ -9,6 +9,7 @@
 //   node config.mjs --reset [<key>]
 //   node config.mjs --show                   every key, its value and where it comes from
 //   node config.mjs --print                  the compact block a run passes to its agents
+//   node config.mjs --print --role <r>       the block for one role: controller, suborch, worker (one line), grunt (none)
 // Exit codes: 0 ok, 2 validation failed (nothing written), 5 usage error.
 // Test only: --interactive forces interactive mode without a terminal.
 import fs from 'node:fs';
@@ -32,6 +33,18 @@ const PRESETS = { standard: {}, ultra: { gate: { fiveHour: { enabled: false } } 
 const KEYS = flatten(DEFAULTS);
 
 class Usage extends Error {}
+
+// Keys a role's block leaves out: keys no rules file that role reads names. A key not listed is printed, so a new
+// key reaches every orchestrator until it is listed here (tests/config-role.test.mjs keeps this list exact).
+export const ROLE_OMIT = {
+  controller: ['gate.pollSec'],
+  suborch: [
+    'gate.enabled', 'gate.fiveHour.enabled', 'gate.maxWaitMin', 'gate.pollSec',
+    ...['slow', 'fast'].flatMap((p) => ['orch', 'worker', 'opus', 'stop'].map((a) => `fiveHour.${p}.${a}`)),
+    'weekly.start', 'weekly.stop', 'context.controllerK', 'cache.keepWarm', 'cache.keepWarmMaxMin',
+  ],
+};
+export const ROLES = ['controller', 'suborch', 'worker', 'grunt'];
 
 /** Parses a command-line value for `key`; returns { value } or { error }. */
 export function parseValue(key, text) {
@@ -164,9 +177,15 @@ function parseArgs(argv) {
       if (argv[i + 1] !== undefined && !argv[i + 1].startsWith('--')) o.resetKey = argv[++i];
     } else if (a === '--show') mode('show');
     else if (a === '--print') mode('print');
+    else if (a === '--role') {
+      if (o.role !== undefined) throw new Usage('--role given twice');
+      o.role = argv[++i];
+      if (!ROLES.includes(o.role)) throw new Usage(`--role needs ${ROLES.join(', ')}`);
+    }
     else if (a === '--interactive') o.interactive = true;
     else throw new Usage(`unknown argument: ${a}`);
   }
+  if (o.role !== undefined && o.mode !== 'print') throw new Usage('--role goes with --print');
   return o;
 }
 
@@ -180,10 +199,16 @@ function cmdShow(env, io) {
   return 0;
 }
 
-function cmdPrint(env, io) {
+function cmdPrint(env, io, role) {
   const r = loadConfig(env);
-  const flat = flatten(r.config);
-  const lines = [`NESTOR-CONFIG (source: ${r.source})`];
+  if (role === 'grunt') return 0; // a grunt prompt carries no config
+  if (role === 'worker') {
+    io.out(`NESTOR-CONFIG worker.stopTurns=${r.config.worker.stopTurns}`);
+    return 0;
+  }
+  const omit = new Set(ROLE_OMIT[role] ?? []);
+  const flat = Object.fromEntries(Object.entries(flatten(r.config)).filter(([k]) => !omit.has(k)));
+  const lines = [`NESTOR-CONFIG (source: ${r.source}${role ? `, role: ${role}` : ''})`];
   const groups = [...new Set(Object.keys(flat).map((k) => k.split('.')[0]))];
   for (const g of groups) {
     const pairs = Object.entries(flat)
@@ -193,8 +218,9 @@ function cmdPrint(env, io) {
   }
   if (r.warnings.includes(WARN_UNREADABLE)) lines.push(WARN_UNREADABLE);
   else {
-    if (r.fallbacks.length)
-      lines.push(`config: ${r.fallbacks.length} invalid value(s) replaced by defaults: ${r.fallbacks.join(', ')}`);
+    const fallbacks = r.fallbacks.filter((k) => !omit.has(k));
+    if (fallbacks.length)
+      lines.push(`config: ${fallbacks.length} invalid value(s) replaced by defaults: ${fallbacks.join(', ')}`);
     for (const w of r.warnings) if (/^config (could not|still invalid)/.test(w)) lines.push(w);
   }
   io.out(lines.join('\n'));
@@ -324,7 +350,7 @@ export async function main(argv, env = process.env, stdio = {}) {
       case 'show':
         return cmdShow(env, io);
       case 'print':
-        return cmdPrint(env, io);
+        return cmdPrint(env, io, o.role);
       case 'set':
         return cmdSet(file, o.sets, io);
       case 'reset':

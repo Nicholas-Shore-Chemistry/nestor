@@ -78,28 +78,23 @@ test('bodies use CLAUDE_PLUGIN_ROOT for scripts and rules', () => {
       assert.ok(fs.existsSync(path.join(DIR, '..', m[0])), `${n}: ${m[0]} exists`);
     }
   }
-  assert.match(A.nestor.body, /\$\{CLAUDE_PLUGIN_ROOT\}\/rules\/core\.md/);
-  assert.match(A.nestor.body, /\$\{CLAUDE_PLUGIN_ROOT\}\/rules\/workflow\.md/);
+  for (const f of ['core', 'workflow', 'replies', 'grunt-use'])
+    assert.match(A.nestor.body, new RegExp(`\\$\\{CLAUDE_PLUGIN_ROOT\\}/rules/${f}\\.md`), f);
 });
 
-test('nestor body has the root sentence, the pending-wait lines and the grunt switch', () => {
+test('nestor body has the root sentence and reads the grunt files only behind the grunt switch', () => {
   const b = A.nestor.body;
   assert.match(b, /In the rules, `<root>` is `\$\{CLAUDE_PLUGIN_ROOT\}`/);
-  assert.match(b, /pending/i);
-  assert.match(b, /run_in_background/);
-  assert.match(b, /`grunt\.subOrch`/);
-  assert.match(b, /Grunt: off/);
+  assert.match(b, /only if `grunt\.subOrch` is true and the brief doesn't say `Grunt: off`, also `\$\{CLAUDE_PLUGIN_ROOT\}\/rules\/replies\.md` and `\$\{CLAUDE_PLUGIN_ROOT\}\/rules\/grunt-use\.md`/);
   assert.match(b, /orchestration\/rules\.md/);
-  assert.match(b, /`nestor:worker`/);
   assert.match(b, /`nestor:grunt`/);
+  assert.match(b, /Take every value from the config in your prompt, never from memory/);
 });
 
-test('nestor body stops its timers and hands HANDOFF-TEXT to the controller', () => {
+test('nestor body leaves the timer, command, handoff and keep-warm rules to the rules files', () => {
   const b = A.nestor.body;
-  assert.match(b, /`sleep` for `gate\.timerMin` minutes/);
-  assert.match(b, /stop your pending timers with `TaskStop`/);
-  assert.match(b, /under `HANDOFF-TEXT:`/);
-  assert.match(b, /The controller then writes it to the handoff file or passes it to the next sub-orchestrator/);
+  for (const re of [/gate\.timerMin/, /run_in_background/, /TaskStop/, /no `&&`/, /HANDOFF-TEXT/, /KEEPWARM/, /REPLY:/])
+    assert.doesNotMatch(b, re);
 });
 
 test('grunt uses exactly the reply channel the task names', () => {
@@ -107,13 +102,6 @@ test('grunt uses exactly the reply channel the task names', () => {
   assert.match(b, /`REPLY: text` \(your caller is the main session\): don't use `SendMessage`/);
   assert.match(b, /`REPLY: message` \(your caller is a sub-orchestrator\): send the reply with `SendMessage`/);
   assert.match(b, /end your turn with the single line `TASK <id>: sent` and nothing else/);
-});
-
-test('nestor body: REPLY message, no timer for workers, KEEPWARM answer', () => {
-  const b = A.nestor.body;
-  assert.match(b, /carries `REPLY: message`/);
-  assert.match(b, /need no timer: a running background agent is pending/);
-  assert.match(b, /`KEEPWARM <n>`.*single word `OK`: no tool call, no tick/);
 });
 
 test('grunt sends SendMessage only to the from id of its task', () => {

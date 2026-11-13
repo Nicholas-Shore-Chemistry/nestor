@@ -59,23 +59,22 @@ test('run skill gates before the first spawn, the grunt included', () => {
   assert.ok(gate >= 0 && grunt > gate && subOrch > gate, 'gate, then grunt, then nestor:nestor');
 });
 
-test('run skill sizes and stops its timer, reads HANDOFF-TEXT and stops headless', () => {
-  assert.match(run.body, /`sleep` for `gate\.timerMin` minutes with `run_in_background: true`/);
-  assert.match(run.body, /carries `REPLY: text`/);
-  assert.match(run.body, /`core\.md` §4\.2/);
-  assert.match(run.body, /Once the last return word has arrived, stop your pending timers with `TaskStop`/);
-  assert.match(run.body, /A reply with `HANDOFF-TEXT:` gives the handoff/);
-  assert.match(run.body, /pass it verbatim in the next `RESUME` or spawn prompt; quote it in your final report/);
-  assert.match(run.body, /the gate prints `headless: true`\) write the status file/);
+test('run skill leaves timers, HANDOFF-TEXT, keep-warm and headless to the controller rules', () => {
+  assert.match(run.body, /Handle the return words, the waits, the timers, `HANDOFF-TEXT:` and your context cap as the rules say \(`controller\.md` §1 to §4, `replies\.md`\)/);
+  assert.match(run.body, /If the verdict is not `GO`, follow `controller\.md` §2, headless included/);
+  for (const re of [/gate\.timerMin/, /run_in_background/, /TaskStop/, /REPLY:/, /no `&&`/])
+    assert.doesNotMatch(run.body, re);
 });
 
 test('run skill checks its own context with tick.mjs', () => {
   assert.match(run.body, /node "\$\{CLAUDE_PLUGIN_ROOT\}\/scripts\/tick\.mjs" .*--session-id \$\{CLAUDE_SESSION_ID\}/);
-  assert.match(run.body, /`core\.md` §5/);
+  assert.match(run.body, /your context cap/);
 });
 
-test('run skill prints config with --print and gates with --action orch', () => {
-  assert.match(run.body, /node "\$\{CLAUDE_PLUGIN_ROOT\}\/scripts\/config\.mjs" --print/);
+test('run skill prints one config block per role and gates with --action orch', () => {
+  for (const r of ['controller', 'suborch', 'worker'])
+    assert.match(run.body, new RegExp(`node "\\$\\{CLAUDE_PLUGIN_ROOT\\}/scripts/config\\.mjs" --print --role ${r}\``), r);
+  assert.match(run.body, /the `suborch` block, the `worker` line, and the brief path/);
   assert.match(run.body, /node "\$\{CLAUDE_PLUGIN_ROOT\}\/scripts\/usage-gate\.mjs" .*--action orch/);
   assert.match(run.body, /\$ARGUMENTS/);
 });
@@ -90,10 +89,11 @@ test('run skill heads use NESTOR-RUN and NESTOR-TAG', () => {
   assert.match(run.body, /Grunt: off/);
 });
 
-test('run skill reads both rules files through the root', () => {
+test('run skill reads its rules files through the root, grunt-use.md only behind the grunt switch', () => {
   assert.match(run.body, /In the rules, `<root>` is `\$\{CLAUDE_PLUGIN_ROOT\}`/);
-  assert.match(run.body, /\$\{CLAUDE_PLUGIN_ROOT\}\/rules\/core\.md/);
-  assert.match(run.body, /\$\{CLAUDE_PLUGIN_ROOT\}\/rules\/workflow\.md/);
+  for (const f of ['core', 'controller', 'replies', 'workflow'])
+    assert.match(run.body, new RegExp(`1\\. Read .*\\$\\{CLAUDE_PLUGIN_ROOT\\}/rules/${f}\\.md`), f);
+  assert.match(run.body, /If `grunt\.controller` is true and the brief doesn't say `Grunt: off`, Read `\$\{CLAUDE_PLUGIN_ROOT\}\/rules\/grunt-use\.md`/);
   assert.match(run.body, /orchestration\/rules\.md/);
 });
 

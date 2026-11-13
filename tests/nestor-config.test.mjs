@@ -38,7 +38,7 @@ const PLAN_DEFAULTS = {
     fast: { workers: 4, reviewers: 1, opus: 1, opusSlots: 2 },
     subOrchs: 1,
   },
-  grunt: { controller: true, subOrch: false, rotateK: 150, coldIdleMin: 50, coldCtxK: 60 },
+  grunt: { controller: true, subOrch: false, rotateK: 60, coldIdleMin: 50, coldCtxK: 40 },
   worker: { stopTurns: 60, longWaitMin: 45 },
 };
 
@@ -247,6 +247,17 @@ test('loadConfig: failed relation resets both keys', () => {
   for (const k of ['fiveHour.slow.worker', 'fiveHour.slow.stop', 'weekly.start', 'weekly.stop'])
     assert.ok(r.fallbacks.includes(k), k);
   assert.deepEqual(validateConfig(r.config).errors, []);
+});
+
+test('grunt.coldCtxK must be below grunt.rotateK; a failed pair goes back to its defaults', () => {
+  assert.ok(DEFAULTS.grunt.coldCtxK < DEFAULTS.grunt.rotateK);
+  assert.ok(hasErrorFor(validateConfig({ grunt: { coldCtxK: 60, rotateK: 60 } }), 'grunt.coldCtxK'));
+  assert.deepEqual(validateConfig({ grunt: { rotateK: 150, coldCtxK: 60 } }).errors, []);
+  const r = loadConfig(envWithFile(JSON.stringify({ grunt: { rotateK: 30 } })));
+  assert.equal(r.config.grunt.rotateK, 60);
+  assert.equal(r.config.grunt.coldCtxK, 40);
+  const keep = loadConfig(envWithFile(JSON.stringify({ grunt: { rotateK: 150, coldCtxK: 60 } })));
+  assert.deepEqual([keep.config.grunt.rotateK, keep.config.grunt.coldCtxK], [150, 60]);
 });
 
 test('loadConfig: relation still failing resets the group', () => {
