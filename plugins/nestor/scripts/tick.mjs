@@ -2,7 +2,9 @@
 // Replaces the separate usage-gate.mjs and ctx.mjs calls after a worker report or a merge.
 //
 //   node tick.mjs --path slow|fast --action orch|worker|opus [--tag <tag> | --session-id <id>]
-//                 [--log <file>] [--json]
+//                 [--log <file>] [--json] [--event <e>]
+//
+// The log line carries tag, session and --event as usage-gate.mjs describes (for calibrate.mjs).
 //
 // Default output, one line (about 95 bytes on GO):
 //   GO 5h=37 7d=17 reset=2026-11-13T11:40Z wait=212 ctx=87k turns=41 kill=0 now=2026-11-13T08:28Z
@@ -14,11 +16,11 @@ import fs from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { loadConfig } from './lib/nestor-config.mjs';
-import { evaluateWithConfig, isHeadless, briefLine, log, CODES } from './usage-gate.mjs';
+import { evaluateWithConfig, isHeadless, briefLine, log, logMeta, parseEvent, CODES } from './usage-gate.mjs';
 import { findCtxCheck } from './ctx.mjs';
 
 function parseArgs(argv) {
-  const a = { pathway: 'slow', action: 'worker', tag: null, sessionId: null, log: null, json: false };
+  const a = { pathway: 'slow', action: 'worker', tag: null, sessionId: null, log: null, json: false, event: null };
   const val = (k, v) => {
     if (v === undefined || v.startsWith('--')) throw new Error(`${k} needs a value`);
     return v;
@@ -31,6 +33,7 @@ function parseArgs(argv) {
     else if (k === '--session-id') a.sessionId = val(k, argv[++i]);
     else if (k === '--log') a.log = val(k, argv[++i]);
     else if (k === '--json') a.json = true;
+    else if (k === '--event') a.event = parseEvent(val(k, argv[++i]));
     else throw new Error(`unknown argument: ${k}`);
   }
   if (a.tag && a.sessionId) throw new Error('use at most one of --tag, --session-id');
@@ -69,7 +72,7 @@ export function runCli(argv = process.argv.slice(2), env = process.env) {
   }
   const headless = isHeadless(env) && env.NESTOR_HEADLESS_WAIT !== '1';
   const res = { ...evaluateWithConfig({ pathway: a.pathway, action: a.action, env, loaded }), headless };
-  log(a.log, res);
+  log(a.log, res, logMeta(a, env));
   const ctx = res.verdict === 'ERROR' ? null : readContext(a, env);
   if (a.json) process.stdout.write(JSON.stringify({ gate: { ...res, now }, ctx }) + '\n');
   else process.stdout.write(briefLine(res, now, ctx ? { k: ctx.context_k, turns: ctx.turns } : null) + '\n');

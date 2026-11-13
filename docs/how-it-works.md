@@ -62,7 +62,7 @@ headless run (`claude -p`) writes none. Within a session, the snapshots keep ref
 only old data and answers `NO-DATA`.
 
 ```
-node <root>/scripts/usage-gate.mjs --path <slow|fast> --action <orch|worker|opus> [--wait] [--max-wait-min <n>] [--poll-sec <n>] [--log <file>] [--brief]
+node <root>/scripts/usage-gate.mjs --path <slow|fast> --action <orch|worker|opus> [--wait] [--max-wait-min <n>] [--poll-sec <n>] [--log <file>] [--brief] [--event <e>] [--tag <tag>] [--session-id <id>]
 ```
 
 `--brief` prints one short line instead of the JSON: verdict, `5h`, `7d`, `reset` (UTC, to the minute), `wait` (minutes), `kill`, `now`,
@@ -168,7 +168,7 @@ script. After every worker report and every merge, `tick.mjs` runs the gate (sam
 codes) and the context check, and prints one line:
 
 ```
-node <root>/scripts/tick.mjs --path <slow|fast> --action <orch|worker|opus> [--tag <tag> | --session-id <id>] [--log <file>] [--json]
+node <root>/scripts/tick.mjs --path <slow|fast> --action <orch|worker|opus> [--tag <tag> | --session-id <id>] [--log <file>] [--json] [--event <e>]
 GO 5h=37 7d=17 reset=2026-11-13T11:40Z wait=212 ctx=87k turns=41 kill=0 now=2026-11-13T08:28Z
 ```
 

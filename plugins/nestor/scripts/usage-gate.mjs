@@ -5,6 +5,11 @@
 //
 //   node usage-gate.mjs --path slow|fast --action orch|worker|opus [--wait] [--max-wait-min n]
 //                       [--poll-sec n] [--log <file>] [--brief]
+//                       [--event <e>] [--tag <tag>] [--session-id <id>]
+//
+// --event, --tag and --session-id go into the log line only (scripts/calibrate.mjs reads them):
+// event is spawn:<type>, report:<type>, merge, wait, resume or tick; session falls back to
+// CLAUDE_CODE_SESSION_ID. They never change the verdict or stdout.
 //
 // --brief prints one short line instead of the JSON (see briefLine); tick.mjs adds the context fields.
 //
@@ -251,6 +256,9 @@ function parseArgs(argv, config) {
     pollSec: config.gate.pollSec,
     log: null,
     brief: false,
+    event: null,
+    tag: null,
+    sessionId: null,
   };
   const num = (k, v) => {
     const n = Number(v);
@@ -270,12 +278,33 @@ function parseArgs(argv, config) {
     else if (k === '--poll-sec') a.pollSec = num(k, argv[++i]);
     else if (k === '--log') a.log = val(k, argv[++i]);
     else if (k === '--brief') a.brief = true;
+    else if (k === '--event') a.event = parseEvent(val(k, argv[++i]));
+    else if (k === '--tag') a.tag = val(k, argv[++i]);
+    else if (k === '--session-id') a.sessionId = val(k, argv[++i]);
     else throw new Error(`unknown argument: ${k}`);
   }
   return a;
 }
 
-export function log(file, res) {
+const EVENT = /^(?:(?:spawn|report):[A-Za-z0-9._:-]{1,40}|merge|wait|resume|tick)$/;
+
+/** The --event value, or an Error naming the allowed forms. */
+export function parseEvent(v) {
+  if (!EVENT.test(v)) throw new Error(`--event must be spawn:<type>, report:<type>, merge, wait, resume or tick (got ${JSON.stringify(v)})`);
+  return v;
+}
+
+/** Log fields that say who read the gate and why: tag, session, event (null ones left out). */
+export function logMeta({ tag = null, sessionId = null, event = null } = {}, env = process.env) {
+  const s = sessionId ?? (typeof env.CLAUDE_CODE_SESSION_ID === 'string' && env.CLAUDE_CODE_SESSION_ID !== '' ? env.CLAUDE_CODE_SESSION_ID : null);
+  const m = {};
+  if (tag) m.tag = tag;
+  if (s) m.session = s;
+  if (event) m.event = event;
+  return m;
+}
+
+export function log(file, res, meta = {}) {
   if (!file) return;
   try {
     // A fresh project has no orchestration/ folder yet: create the parent so callers never need mkdir.
@@ -283,7 +312,7 @@ export function log(file, res) {
     // instead of planting a stray folder tree.
     const dir = path.dirname(path.resolve(file));
     if (!fs.existsSync(dir)) fs.mkdirSync(dir);
-    fs.appendFileSync(file, JSON.stringify({ at: new Date().toISOString(), ...res }) + '\n');
+    fs.appendFileSync(file, JSON.stringify({ at: new Date().toISOString(), ...meta, ...res }) + '\n');
   } catch {
     /* logging is best effort */
   }
@@ -313,11 +342,11 @@ export async function runCli(argv = process.argv.slice(2), env = process.env) {
     // wait gets fresh readings only while an interactive session is open elsewhere.
     // Fail safe: never GO here, only the verdict, so the caller writes its resume point and stops.
     res = { ...res, wait_skipped: 'headless' };
-    log(a.log, res);
+    log(a.log, res, logMeta(a, env));
     out(res);
     return CODES[res.verdict] ?? 2;
   }
-  log(a.log, res);
+  log(a.log, res, logMeta(a, env));
   if (a.wait) {
     // A reset that passes during the wait ends it at once: a waiting session makes no turns, so
     // only the caller's next turn can bring the new reading. If the first check already needed a
@@ -327,7 +356,7 @@ export async function runCli(argv = process.argv.slice(2), env = process.env) {
       if (res.needs_reading && !firstNeeded) break;
       if (Date.now() - started > a.maxWaitMin * 60_000) {
         res = { ...res, verdict: 'TIMEOUT', waited_min: Math.round((Date.now() - started) / 60_000) };
-        log(a.log, res);
+        log(a.log, res, logMeta(a, env));
         out(res);
         return 3;
       }
@@ -335,7 +364,7 @@ export async function runCli(argv = process.argv.slice(2), env = process.env) {
       res = { ...check(), headless };
     }
     res = { ...res, waited_min: Math.round((Date.now() - started) / 60_000) };
-    log(a.log, res);
+    log(a.log, res, logMeta(a, env));
   }
   out(res);
   return CODES[res.verdict] ?? 2;
