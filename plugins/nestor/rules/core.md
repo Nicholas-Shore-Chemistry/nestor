@@ -88,8 +88,8 @@ at most 15 lines and ends with one word on the last line:
 `WP-DONE` (finished) · `ROTATE` (context cap, §5) · `WAIT` (usage gate, §4; the `CACHE:` line comes right before it) ·
 `LIMIT` (any other wait longer than `worker.longWaitMin`) · `BLOCKED` (needs the user: a gate decision, a secret, a
 login, fix round 4, a ruling).
-A handoff or status write denied after a resume (a resumed agent may lose the run skill's file grants) is no reason
-for `BLOCKED`: put the text in the reply under `HANDOFF-TEXT:` and end with the word the work earned.
+Write it also before any other turn-ending wait (worker reports, a grunt reply): a resumed agent may lose the run
+skill's file grants. A handoff or status write denied after a resume is no reason for `BLOCKED`: put the text in the reply under `HANDOFF-TEXT:` and end with the word the work earned.
 
 ## 7. Recording
 Record the controller's session id (its skill names it; a sub-orchestrator reads its prompt's `SESSION:` line) in the

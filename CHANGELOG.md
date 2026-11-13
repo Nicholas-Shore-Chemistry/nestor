@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- Rules split by role (`core`, `workflow`, `controller`, `grunt-use`, `replies`); `config.mjs --print --role`.
+- Grunt rotation at 60k (`grunt.rotateK`), new `grunt.coldCtxK` 40. The two must satisfy `coldCtxK < rotateK`:
+  a user config that sets only `grunt.coldCtxK` to 60 or more fails that check, and both keys fall back to defaults.
+
 ## 0.1.0
 
 First release.
