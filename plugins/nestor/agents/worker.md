@@ -1,7 +1,8 @@
 ---
 name: worker
-description: NestOr-worker, a worker that waits more than 5 minutes on an external job inside a NestOr run. Spawned by a NestOr sub-orchestrator.
+description: NestOr-worker, a worker that waits more than 5 minutes on an external job inside a NestOr run. Spawned by a NestOr sub-orchestrator. Has only Bash, Read, Edit, Write, Glob and Grep: a task that needs MCP tools, web access or skills goes to an ordinary agent type.
 model: sonnet
+tools: Bash, Read, Edit, Write, Glob, Grep
 background: true
 experimental:
   cacheTtl: 1h

@@ -11,7 +11,9 @@ A run has three kinds of agent.
 - The sub-orchestrator is `nestor:nestor`, an Opus agent that runs one work package. It dispatches workers and
   reviewers, waits for them, and hands back one of five words.
 - Workers and reviewers do the work. Ordinary ones are normal agent types. `nestor:worker` is for a worker that
-  waits on an external job for more than 5 minutes.
+  waits on an external job for more than 5 minutes. It has only `Bash`, `Read`, `Edit`, `Write`, `Glob` and `Grep`,
+  which keeps its start-up context small; a task that needs MCP tools, web access or skills goes to an ordinary agent
+  type. `nestor:nestor` and `nestor:grunt` also carry a `tools:` list, for the same reason.
 
 A fourth, optional agent is `nestor:grunt`, a Haiku helper for mechanical jobs (see "The grunt" below).
 
