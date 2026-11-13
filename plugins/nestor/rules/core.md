@@ -41,14 +41,13 @@ arguments (fix the command, never treat it as `GO`). The exit code is zero only 
 `needs_reading`: the window has reset and no reading of the new one exists yet; any model turn brings one within about
 a minute. `--action`: `orch` for a new sub-orchestrator or a run start, `opus` for an Opus agent, `worker` for the rest.
 - **The tick.** After every worker report and every merge, one call gives verdict and context:
-  `node <root>/scripts/tick.mjs --path <p> --action <orch|worker|opus> --tag "<tag>" --log orchestration/usage-log.jsonl`
-  (the controller: `--session-id "<its session id>"` instead of `--tag`). One line, the gate's exit codes:
-  `GO 5h=<n> 7d=<n> reset=<ISO to the minute> wait=<min> ctx=<n>k turns=<n> kill=<flag> now=<ISO to the minute>`. Non-`GO` adds
-  `reason="..."`, `NO-DATA` adds the flag `needs_reading` when set, headless the flag `headless`; `ctx=?` means the context check
-  failed and the verdict still holds. No separate `ctx.mjs` or gate call for the same event.
+  `node <root>/scripts/tick.mjs --path <p> --action <orch|worker|opus> --tag "<tag>" --event <e> --log orchestration/usage-log.jsonl`
+  (the controller: `--session-id "<its session id>"` for `--tag`). `<e>` names the occasion: `report:<agent type>`, `merge`,
+  `spawn:<agent type>`, `resume`, `wait` (before a `WAIT` reply), else `tick`. One line, the gate's exit codes: `GO 5h=<n>
+  7d=<n> reset=<ISO> wait=<min> ctx=<n>k turns=<n> kill=<flag> now=<ISO>`. Non-`GO` adds `reason="..."`, `NO-DATA` the flag
+  `needs_reading` when set, headless `headless`; `ctx=?`: the context check failed, the verdict holds. No other call for it.
 - **Before a spawn** no gate call is needed when your latest tick is `GO`, younger than `gate.freshMin` (compare `now`) and
-  nothing was dispatched since: the spawn guard hook is the check. Otherwise tick first. `usage-gate.mjs` alone (add
-  `--brief` for the short line) is for `--wait` and for a caller without a tag.
+  nothing was dispatched since: the spawn guard hook is the check. Otherwise tick first. `usage-gate.mjs` alone is for `--wait`.
 - Every spawn prompt starts with `NESTOR-RUN: <project> PATHWAY: <slow|fast>`; a sub-orchestrator's also carries
   `NESTOR-TAG: <tag>`. The spawn guard hook denies such a spawn unless the gate says `GO`, so a forgotten check fails
   safe. A denial is final: never strip the line or reach the spawn another way.
@@ -62,7 +61,7 @@ The controller's part: `controller.md` §2.
 - `NO-START` with nothing running, or `STOP`: let running workers finish (don't stop them), finish the current atomic
   step, record what merged, write the handoff, and return `WAIT` with the `CACHE:` line (§4.1).
 - A short wait in place only when the gate's `wait_min` is at most `gate.shortWaitMin`: a foreground
-  `node <root>/scripts/usage-gate.mjs --path <p> --action worker --wait --log orchestration/usage-log.jsonl`
+  `node <root>/scripts/usage-gate.mjs --path <p> --action worker --wait --event wait --log orchestration/usage-log.jsonl`
   with `--max-wait-min` set to `gate.shortWaitChunkMin` (Bash timeout above that), at most `gate.shortWaitTries` times.
 - On `RESUME`: tick again (`--action worker`), re-read only the handoff and the git log since it, then go on; not the
   brief. On `KEEPWARM <n>`: reply with the single word `OK`, no tool call, no tick, nothing else.
@@ -89,7 +88,8 @@ at most 15 lines and ends with one word on the last line:
 `LIMIT` (any other wait longer than `worker.longWaitMin`) · `BLOCKED` (needs the user: a gate decision, a secret, a
 login, fix round 4, a ruling).
 Write it also before any other turn-ending wait (worker reports, a grunt reply): a resumed agent may lose the run
-skill's file grants. A handoff or status write denied after a resume is no reason for `BLOCKED`: put the text in the reply under `HANDOFF-TEXT:` and end with the word the work earned.
+skill's file grants. A handoff or status write denied after a resume is no reason for `BLOCKED`: put the text in the
+reply under `HANDOFF-TEXT:` and end with the word the work earned.
 
 ## 7. Recording
 Record the controller's session id (its skill names it; a sub-orchestrator reads its prompt's `SESSION:` line) in the

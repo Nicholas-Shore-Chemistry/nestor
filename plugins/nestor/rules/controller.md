@@ -23,7 +23,8 @@ Read by the controller only, with `core.md`, `replies.md` and `workflow.md`. A b
 ## 2. Automatic wait
 The user can start a run at any time. If the gate says no, the run waits for the window to reset, then starts itself.
 The gate reads the plan limits from the statusline snapshots, which refresh without model turns:
-`node <root>/scripts/usage-gate.mjs --path <p> --action <orch|worker|opus> [--wait] [--max-wait-min <n>] --log orchestration/usage-log.jsonl`
+`node <root>/scripts/usage-gate.mjs --path <p> --action <orch|worker|opus> [--wait] [--max-wait-min <n>] --event <e> --log orchestration/usage-log.jsonl`
+(`<e>` as for the tick, `core.md` §3: `wait` with `--wait`, `spawn:<agent type>` at the run start.)
 It prints one JSON line with `verdict`, `reason`, `hint`, `resets_at`, `wait_min`, `kill_workers`, `headless` and `now`; with `--brief`
 it prints the one-line form instead (`core.md` §3).
 - 5h: start only while usage is below `fiveHour.<p>.<action>`; `STOP` at or above `fiveHour.<p>.stop`.
