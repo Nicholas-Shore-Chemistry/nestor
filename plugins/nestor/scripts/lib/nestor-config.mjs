@@ -34,7 +34,7 @@ export const DEFAULTS = deepFreeze({
     fast: { workers: 4, reviewers: 1, opus: 1, opusSlots: 2 },
     subOrchs: 1,
   },
-  grunt: { controller: true, subOrch: false, rotateK: 150, coldIdleMin: 50, coldCtxK: 60 },
+  grunt: { controller: true, subOrch: false, rotateK: 60, coldIdleMin: 50, coldCtxK: 40 },
   worker: { stopTurns: 60, longWaitMin: 45 },
 });
 
@@ -161,6 +161,7 @@ const RELATIONS = [
   ]),
   ['weekly.start', 'weekly.stop', ['weekly']],
   ['context.subOrchSoftK', 'context.subOrchHardK', ['context']],
+  ['grunt.coldCtxK', 'grunt.rotateK', ['grunt']],
 ];
 
 // Relations that fail on a config whose two keys are valid numbers (invalid keys are reported as value issues).

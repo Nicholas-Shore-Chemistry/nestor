@@ -35,7 +35,7 @@ export function splitTools(s) {
   return out;
 }
 
-// Rule of workflow.md section 6: a skill pre-approves no bare Bash or PowerShell and no
+// Rule of controller.md §5: a skill pre-approves no bare Bash or PowerShell and no
 // interpreter prefix; each Bash entry names one existing script of the plugin.
 // Returns the list of Bash entries so a caller can compare them further.
 export function assertNamedScriptsOnly(skillName) {

@@ -11,8 +11,9 @@ core rules if it exists.
 - A project file may add rules: how your tests run, where reports go, which branch names to use, what a worker's
   shared rules are.
 - It may not weaken the core rules, and it may not restate sections 2 to 4 of `core.md` (pathways, the usage gate,
-  the automatic wait). Link to them instead of copying, so there is one copy to keep right.
-- If the two disagree, `core.md` wins.
+  the automatic wait) or sections 2 and 3 of `controller.md` (the controller's wait and keep-warm). Link to them
+  instead of copying, so there is one copy to keep right.
+- If the two disagree, NestOr's rules files win.
 
 ## Extra agent types
 

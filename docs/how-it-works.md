@@ -3,6 +3,19 @@
 The rules in `plugins/nestor/rules/` are short on purpose, because every agent pays for every line it reads. This page
 gives the reasons behind them and lists every default once.
 
+The rules are split by reader, so each agent reads only its part:
+
+| File | Read by |
+|---|---|
+| `core.md` | the controller and every sub-orchestrator: levels, pathways, the gate, the sub-orchestrator's wait, return words |
+| `workflow.md` | the controller and every sub-orchestrator: planning, briefs, the worker rules, model choice, commands |
+| `controller.md` | the controller only: sessions, its waits, keep-warm, `HANDOFF-TEXT:` |
+| `replies.md` | every orchestrator that sends `SendMessage`: the controller, and a sub-orchestrator with a grunt |
+| `grunt-use.md` | only an orchestrator that has a grunt |
+
+Workers, reviewers and the grunt read none of them: a worker gets the worker rules through its brief and the
+project's `rules.md`, the grunt carries its own rules in its agent body.
+
 ## Levels
 
 A run has three kinds of agent.
@@ -133,7 +146,7 @@ verdict, the first lines of the prompt). It is off by default. The guard creates
 
 `/nestor:run` pre-approves four scripts, `config.mjs`, `usage-gate.mjs`, `ctx.mjs` and `tick.mjs`, each by its exact path, and a
 read of `${CLAUDE_PLUGIN_ROOT}/rules/*`, the plugin's own rules files and nothing else. The read grant is what lets the
-controller and the NestOr agent open `core.md` and `workflow.md` without a prompt on a fresh install. Claude Code applies
+controller and the NestOr agent open their rules files without a prompt on a fresh install. Claude Code applies
 a skill's `allowed-tools` to the agents the skill spawns, so one entry covers both. The grants hold in the skill's own
 turn and for agents started in it while they keep running; a later controller turn or a resumed agent may be denied. There is no bare `Read`, no bare
 `Bash` and no wildcard that leaves the plugin folder.
@@ -325,22 +338,27 @@ node <root>/scripts/config.mjs --preset standard|ultra|custom
 node <root>/scripts/config.mjs --set <key>=<value>  # repeatable; true/false/on/off or whole numbers
 node <root>/scripts/config.mjs --reset [<key>]
 node <root>/scripts/config.mjs --show               # every key, its value, where it comes from
-node <root>/scripts/config.mjs --print              # the compact block a run passes to its agents
+node <root>/scripts/config.mjs --print              # every key, as one compact block
+node <root>/scripts/config.mjs --print --role <r>   # the block for controller, suborch or worker; grunt gets none
 ```
 
 The script checks before it writes, and writes nothing if a check fails (exit code 2). Percentages must be whole
 numbers from 1 to 100, other numbers whole and at least 1. Per pathway, the `orch`, `worker` and `opus` start lines
 must be below `stop`, and `stop` below `fiveHour.killWorkers`. `weekly.start` must be below `weekly.stop`, and
-`context.subOrchSoftK` below `context.subOrchHardK`, and `gate.timerMin` below 60, so the timer fires inside the
-1-hour cache. It warns, without refusing, when `agents.subOrchs` or an `agents.<path>.opus` value is above 1, when
+`context.subOrchSoftK` below `context.subOrchHardK`, `grunt.coldCtxK` below `grunt.rotateK`, and `gate.timerMin` below
+60, so the timer fires inside the 1-hour cache. It warns, without refusing, when `agents.subOrchs` or an `agents.<path>.opus` value is above 1, when
 `gate.timerMin` is above `cache.warmWindowMin`, and when `cache.keepWarm` is on with `cache.keepWarmMaxMin` at or below
 `cache.warmWindowMin` (keep-warm would never apply).
 
 If a file on disk is unreadable or breaks these checks anyway, NestOr never opens the gate because of it. Each bad key
 falls back to its default, and the gate's reason says so.
 
-At run start the controller runs `--print` and pastes the block under the head lines of every spawn prompt, so every
-agent gets its numbers from one place. The rules themselves only name the keys.
+At run start the controller runs `--print --role controller` for itself, `--print --role suborch` for its
+sub-orchestrators and `--print --role worker` once. Each role's block leaves out the keys that role's rules never name.
+The worker role is one line, `NESTOR-CONFIG worker.stopTurns=<n>`: the controller puts it under the `suborch` block,
+and a sub-orchestrator copies it into every worker and reviewer prompt. A grunt prompt carries no config, and
+`--role grunt` prints nothing. So every agent gets its numbers from one place, and the rules themselves only name the
+keys. `--print` without `--role` prints every key.
 
 ## Defaults
 
@@ -386,8 +404,8 @@ of context, and `Min` values are minutes.
 | `agents.subOrchs` | `1` | Sub-orchestrators at a time at most. |
 | `grunt.controller` | `true` | The controller keeps a grunt. |
 | `grunt.subOrch` | `false` | Each sub-orchestrator keeps a grunt. |
-| `grunt.rotateK` | `150` | A grunt is replaced at this context size. |
+| `grunt.rotateK` | `60` | A grunt is replaced at this context size. A grunt keeps no state worth keeping, so it rotates early. |
 | `grunt.coldIdleMin` | `50` | Idle minutes after which a grunt's cache counts as cold. |
-| `grunt.coldCtxK` | `60` | A cold grunt above this context size is replaced, not woken. |
+| `grunt.coldCtxK` | `40` | A cold grunt above this context size is replaced, not woken. Below `grunt.rotateK`. |
 | `worker.stopTurns` | `60` | A worker stops with a handoff after this many turns. |
 | `worker.longWaitMin` | `45` | A planned wait longer than this ends the session with a resume point. |
