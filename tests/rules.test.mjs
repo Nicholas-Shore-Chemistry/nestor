@@ -60,6 +60,7 @@ test('rules mention the rule-relevant keys', () => {
     'cache.warmWindowMin', 'grunt.controller', 'grunt.subOrch', 'grunt.rotateK',
     'grunt.coldIdleMin', 'grunt.coldCtxK', 'worker.stopTurns', 'worker.longWaitMin',
     'gate.shortWaitMin', 'gate.timerMin', 'fiveHour.killWorkers', 'gate.enabled', 'gate.fiveHour.enabled',
+    'cache.keepWarm', 'cache.keepWarmMaxMin', 'weekly.stop',
   ];
   const present = new Set(spans(both));
   assert.deepEqual(required.filter((k) => !present.has(k)), []);
@@ -82,6 +83,21 @@ test('timer stop, HANDOFF-TEXT reader, grunt reply limit and headless rule prese
   assert.match(core, /counts once/);
   assert.match(core, /\*\*Headless\*\*, instead of the above \(the gate prints `headless: true`\)/);
   assert.match(core, /`NESTOR_HEADLESS_WAIT=1`/);
+});
+
+test('reply channel, timer purpose and keep-warm rules present', () => {
+  assert.match(core, /REPLY: <text\|message>/);
+  assert.match(core, /the controller always writes `REPLY: text`/);
+  assert.match(core, /a sub-orchestrator always `REPLY: message`/);
+  assert.doesNotMatch(core, /a reply may come twice/);
+  assert.match(core, /The timer only keeps something pending/);
+  assert.match(core, /answer it with the next timer call only, no text/);
+  assert.match(core, /needs no timer for them; the timer is for `SendMessage` replies only/);
+  assert.match(core, /### 4\.2 Keep-warm/);
+  assert.match(core, /On `KEEPWARM <n>`: reply with the single word `OK`, no tool call, no tick/);
+  assert.match(core, /at least five points below `fiveHour\.killWorkers`/);
+  assert.match(core, /below\s+`weekly\.stop`/);
+  assert.match(core, /never headless/);
 });
 
 test('scripts use <root>', () => {
@@ -107,6 +123,6 @@ test('names and heads', () => {
 });
 
 test('length limits', () => {
-  assert.ok(lineCount(core) <= 208, `core.md has ${lineCount(core)} lines`);
+  assert.ok(lineCount(core) <= 226, `core.md has ${lineCount(core)} lines`);
   assert.ok(lineCount(workflow) <= 100, `workflow.md has ${lineCount(workflow)} lines`);
 });

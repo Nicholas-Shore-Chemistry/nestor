@@ -19,7 +19,7 @@ export const DEFAULTS = deepFreeze({
     shortWaitMin: 20,
     shortWaitChunkMin: 9,
     shortWaitTries: 2,
-    timerMin: 10,
+    timerMin: 50,
   },
   fiveHour: {
     slow: { orch: 50, worker: 65, opus: 55, stop: 80 },
@@ -28,7 +28,7 @@ export const DEFAULTS = deepFreeze({
   },
   weekly: { start: 85, stop: 92 },
   context: { subOrchSoftK: 130, subOrchHardK: 150, controllerK: 150 },
-  cache: { warmWindowMin: 50 },
+  cache: { warmWindowMin: 50, keepWarm: false, keepWarmMaxMin: 180 },
   agents: {
     slow: { workers: 2, reviewers: 1, opus: 1, opusSlots: 2 },
     fast: { workers: 4, reviewers: 1, opus: 1, opusSlots: 2 },
@@ -105,6 +105,9 @@ export function unknownKeys(def, part, prefix = '', out = []) {
 
 const isPercentKey = (key) => key.startsWith('fiveHour.') || key.startsWith('weekly.');
 
+// Keys with an upper bound (exclusive). The reply timer must fire inside the 1 h prompt cache.
+const BELOW = { 'gate.timerMin': 60 };
+
 function getAt(obj, key) {
   return key.split('.').reduce((o, k) => (isPlainObject(o) ? o[k] : undefined), obj);
 }
@@ -137,6 +140,8 @@ function valueIssues(cfg) {
         issues.push({ key, message: `${key}: must be between 1 and 100` });
       } else if (!isPercentKey(key) && v < 1) {
         issues.push({ key, message: `${key}: must be at least 1` });
+      } else if (Object.hasOwn(BELOW, key) && v >= BELOW[key]) {
+        issues.push({ key, message: `${key}: must be below ${BELOW[key]}` });
       }
     }
   };
@@ -174,6 +179,14 @@ function softWarnings(cfg) {
   for (const p of ['slow', 'fast'])
     if (typeof cfg?.agents?.[p]?.opus === 'number' && cfg.agents[p].opus > 1)
       w.push(`agents.${p}.opus above 1: ${INCIDENT}`);
+  const num = (v) => typeof v === 'number';
+  const timer = cfg?.gate?.timerMin;
+  const warm = cfg?.cache?.warmWindowMin;
+  if (num(timer) && num(warm) && timer > warm)
+    w.push('gate.timerMin above cache.warmWindowMin: a waiting orchestrator may wake after its cache has gone cold');
+  const maxKw = cfg?.cache?.keepWarmMaxMin;
+  if (cfg?.cache?.keepWarm === true && num(maxKw) && num(warm) && maxKw <= warm)
+    w.push('cache.keepWarmMaxMin at or below cache.warmWindowMin: keep-warm never applies');
   return w;
 }
 

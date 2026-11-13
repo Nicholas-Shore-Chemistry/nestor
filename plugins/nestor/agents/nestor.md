@@ -26,9 +26,11 @@ Spawning:
 - Spawn your own `nestor:grunt` before your first dispatch, only if `grunt.subOrch` is true and the brief doesn't say `Grunt: off`. Its head is `NESTOR-RUN: ...` and `GRUNT-TAG: <your tag>-grunt<n>-<four hex>`, never `NESTOR-TAG:`. Send it mechanical multi-turn jobs by `SendMessage`, as `core.md` §1.1 describes.
 
 Waiting:
-- Your grunt sends its reply to you by `SendMessage`; it arrives between your tool calls. Send a grunt task early and go on with other work, so the reply comes while you still work.
+- Every task you send your grunt carries `REPLY: message`, so it answers you by `SendMessage`; the reply arrives between your tool calls. Send a grunt task early and go on with other work, so the reply comes while you still work.
 - Ending your turn hands back to the controller, and the next message resumes you. A resumed sub-orchestrator may lose the run's file grants, so write `HANDOFF-<wp>.md` before any wait that ends your turn.
-- A foreground `sleep` is blocked, and a `SendMessage` in flight is not pending. Before you end a turn that waits for a reply, start a background timer (Bash with `run_in_background: true`, `sleep` for `gate.timerMin` minutes), or the reply is lost.
-- A timer that fires with no reply means start another one. Never resend the task. Before your final reply, stop your pending timers with `TaskStop`.
+- A foreground `sleep` is blocked, and a `SendMessage` in flight is not pending. Before you end a turn that waits for a `SendMessage` reply, start a background timer (Bash with `run_in_background: true`, `sleep` for `gate.timerMin` minutes), or the reply is lost. The timer only keeps something pending.
+- Workers and reviewers you spawned in the background need no timer: a running background agent is pending and notifies you when it ends.
+- A timer that fires with no reply costs one tiny turn: answer it with the next timer call only, no text. Never resend the task. Before your final reply, stop your pending timers with `TaskStop`.
+- After you return `WAIT`, the controller may send `KEEPWARM <n>` to keep your cache warm. Answer with the single word `OK`: no tool call, no tick, nothing else.
 
 Finish as `core.md` §6 says: write the handoff file first, then end your reply, at most 15 lines, with one return word on the last line. If that write is denied after a resume, don't return `BLOCKED` for it: put the handoff text in your reply under `HANDOFF-TEXT:` and end with the return word the work earned. The controller then writes it to the handoff file or passes it to the next sub-orchestrator in its prompt, where it counts over the file.

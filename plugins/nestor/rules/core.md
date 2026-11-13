@@ -49,8 +49,10 @@ You are NestOr-grunt <n> for <caller>. Project root: <path>. Wait for tasks. Rep
 Use `GRUNT-TAG:`, never `NESTOR-TAG:`: the spawn guard would gate it as a sub-orchestrator.
 
 **Tasks** go by `SendMessage` to the same grunt, one at a time:
-`TASK <id>: GRUNT-TAG is <tag>. <numbered steps, exact commands, paths, what counts as pass, where long output goes>`.
+`TASK <id>: GRUNT-TAG is <tag>. REPLY: <text|message>. <numbered steps, exact commands, paths, what counts as pass, where long output goes>`.
 The tag is required: the message reaches the grunt under a raw agent id, and the tag tells it the task is yours.
+`REPLY:` names the one channel: the controller always writes `REPLY: text` (its end-of-turn text reaches the main
+session), a sub-orchestrator always `REPLY: message` (`SendMessage` back, then the one line `TASK <id>: sent`).
 - Pass conditions need the same care as a brief. Check them against the real state before you send.
 - **Git guard**, for every task that touches a git repo: the first and the last steps are both
   `git branch --show-current`, then `git show -s --oneline HEAD`, and the report quotes both readings on separate lines,
@@ -64,18 +66,19 @@ The tag is required: the message reaches the grunt under a raw agent id, and the
 turn with only that outstanding and the reply is lost.
 - After `SendMessage` to a grunt or to any agent whose reply you need, don't end your turn with nothing pending.
   First start a background timer (Bash with `run_in_background: true`, `sleep` for `gate.timerMin` minutes), then
-  end the turn. A foreground `sleep` is blocked. A timer that fires with no reply means: start another timer.
-- The grunt replies by `SendMessage` only to the `from` id of the task; it arrives between your tool calls. Its
-  end-of-turn text goes to the main session, so a reply may come twice (message and notification): it counts once.
+  end the turn. A foreground `sleep` is blocked. The timer only keeps something pending; nothing is checked when it
+  fires. A timer that fires with no reply costs one tiny turn: answer it with the next timer call only, no text.
+- With `REPLY: message` the grunt replies by `SendMessage` only to the `from` id of the task; it arrives between your
+  tool calls. With `REPLY: text` its reply is the task notification. A reply counts once, however it arrives.
 - An agent that ends its turn is resumed by the next message and may then lose the run skill's file grants. So a
   sub-orchestrator sends grunt tasks early, keeps working while they run, and writes its handoff before a turn-ending wait.
 - **Controller:** until every sub-orchestrator has returned a return word (§6), end no turn with nothing pending; after
-  any other notification, start a new timer first. Relay a grunt reply only if the sub-orchestrator reports it never
-  came.
+  any other notification, keep the pending timer, or start one if none is pending. Relay a grunt reply only if the
+  sub-orchestrator reports it never came.
 - Once the last reply you wait for has arrived (the controller: the last return word), `TaskStop` your pending timers
   before the final report or reply. A headless run exits only when nothing is pending. Never resend a task.
-- The same holds while you wait on any background agent: something must be pending when your turn ends, or a
-  sub-orchestrator is forced to hand back and the reply is lost.
+- A running background agent you spawned is pending: it notifies you when it ends. So a sub-orchestrator that
+  waits on workers or reviewers needs no timer for them; the timer is for `SendMessage` replies only.
 - A "completed" notification from a background grunt is its idle state, not its end. The next `SendMessage` to its
   agent id resumes the same agent with its history.
 
@@ -140,8 +143,8 @@ The user can start a run at any time. If the gate says no, the run waits for the
 **Controller**
 - Tick (§3) with `--action orch` before the first spawn and before every sub-orchestrator spawn, unless §3 lets you skip it.
 - Not `GO`: write the resume point into the project's status file first, then start the gate with `--action orch
-  --wait` in the background (Bash, `run_in_background: true`; longest wait `gate.maxWaitMin`). The harness wakes you
-  when it exits: no `/loop`, scheduled wake-ups or polling turns. `GO`: spawn. `TIMEOUT`: `BLOCKED`, tell the user.
+  --wait` in the background (Bash, `run_in_background: true`; longest wait `gate.maxWaitMin`; chunked under §4.2). The
+  harness wakes you when it exits: no `/loop`, scheduled wake-ups or polling turns. `GO`: spawn. `TIMEOUT`: `BLOCKED`, tell the user.
   After a reset `--wait` ends with `NO-DATA`: run `--wait` once more with a short `--max-wait-min` for the new reading, then spawn on `GO`.
 - **Headless**, instead of the above (the gate prints `headless: true`): don't wait. Not `GO`: write the resume point
   into the status file (if denied, into the report), report the verdict, `reason` and `resets_at`, and stop.
@@ -151,6 +154,7 @@ The user can start a run at any time. If the gate says no, the run waits for the
     until `warm-until`. On `GO`, run a foreground tick (§3) once more, then `SendMessage` the same
     sub-orchestrator: `RESUME: gate GO <hh:mm>, continue from HANDOFF-<wp>.md`, then wait for its reply as in §1.1.
     Don't spawn. On `TIMEOUT` its cache has gone cold: go on as for cold. `NO-DATA` with `needs_reading`: run the short `--wait` first, then as for `GO`.
+  - **Keep-warm** (`reset` after `warm-until`, and §4.2 applies): chunked wait with `KEEPWARM` turns as in §4.2.
   - **Cold** (`reset` after `warm-until`, `reset` unknown, or `warm-until=none`): background wait as for a gate that
     isn't `GO`, then spawn a fresh sub-orchestrator with its handoff. Don't `SendMessage` the old one.
   - `SendMessage` gets past the spawn guard, so the foreground gate before a `RESUME` is mandatory.
@@ -164,7 +168,7 @@ The user can start a run at any time. If the gate says no, the run waits for the
 - A short wait in place only when the gate's `wait_min` is at most `gate.shortWaitMin`: a foreground `--wait` with
   `--max-wait-min` set to `gate.shortWaitChunkMin` (Bash timeout above that), at most `gate.shortWaitTries` times.
 - On `RESUME`: tick again (`--action worker`), re-read only the handoff and the git log since it, then go on; not the
-  brief.
+  brief. On `KEEPWARM <n>`: reply with the single word `OK`, no tool call, no tick, nothing else.
 
 **Workers** don't check usage. They stop at `worker.stopTurns` turns with a handoff (`workflow.md`).
 
@@ -177,8 +181,24 @@ usable window is `cache.warmWindowMin`, which leaves a margin for the gate's ref
   Tick right before the reply and take `now`, `reset` and `wait` from it; that reply is your last request.
 - Write `warm-until=none` if your context is at or above `context.subOrchSoftK` (you rotate anyway), if you weren't
   spawned as `nestor:nestor`, or if the account is in overage or on a weekly `STOP`.
-- A fresh sub-orchestrator is spawned only when the wait outlasts the cache window; otherwise the old one carries on.
+- A fresh sub-orchestrator is spawned only when the wait outlasts the cache window and §4.2 does not apply.
 - `kill_workers` true (5h at or above `fiveHour.killWorkers`): `TaskStop` running workers, rebuild from git and reports.
+
+### 4.2 Keep-warm
+Only with `cache.keepWarm` on, never headless. A tiny turn per window reads the context at the cache rate and renews
+the cache; a cold restart writes it all again.
+- **Applies** to a `WAIT` with `reset` after `warm-until` (not `none`) and to the controller's own wait before a
+  spawn, if `wait_min` is at most `cache.keepWarmMaxMin`.
+- **Limit**, yours to keep (`SendMessage` passes the spawn guard): a keep-warm turn may run above the stop line, but
+  only while `5h` on the latest gate line is at least five points below `fiveHour.killWorkers` and `7d` is below
+  `weekly.stop` (this rules out overage). Otherwise, `5h=?` included, or past `cache.keepWarmMaxMin` in total: no
+  `KEEPWARM`, go cold (§4) from there.
+- **Chunks:** background gate `--wait --brief`, `--max-wait-min` the minutes until `warm-until`, then
+  `cache.warmWindowMin` each. A chunk that ends without `GO`: check the limit on its line, `SendMessage` the
+  sub-orchestrator `KEEPWARM <n>` (`n` counts the pings), start the next chunk, end the turn with no text. Its `OK`
+  arrives as a notification: end that turn with no text and no call. The controller's own wait: each chunk end is its
+  keep-warm turn, the next chunk call only.
+- `GO`, or `NO-DATA` with `needs_reading`: as for warm (§4), then `RESUME` or spawn.
 
 ## 5. Context caps
 The tick (§3) carries the context reading, `ctx=<n>k`. `node <root>/scripts/ctx.mjs --tag "<tag>"` alone is for a caller

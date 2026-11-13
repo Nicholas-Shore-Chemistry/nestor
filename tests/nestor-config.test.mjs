@@ -23,7 +23,7 @@ const PLAN_DEFAULTS = {
     shortWaitMin: 20,
     shortWaitChunkMin: 9,
     shortWaitTries: 2,
-    timerMin: 10,
+    timerMin: 50,
   },
   fiveHour: {
     slow: { orch: 50, worker: 65, opus: 55, stop: 80 },
@@ -32,7 +32,7 @@ const PLAN_DEFAULTS = {
   },
   weekly: { start: 85, stop: 92 },
   context: { subOrchSoftK: 130, subOrchHardK: 150, controllerK: 150 },
-  cache: { warmWindowMin: 50 },
+  cache: { warmWindowMin: 50, keepWarm: false, keepWarmMaxMin: 180 },
   agents: {
     slow: { workers: 2, reviewers: 1, opus: 1, opusSlots: 2 },
     fast: { workers: 4, reviewers: 1, opus: 1, opusSlots: 2 },
@@ -68,7 +68,7 @@ test('flatten gives dotted keys', () => {
   assert.equal(f['fiveHour.slow.orch'], 50);
   assert.equal(f['gate.fiveHour.enabled'], true);
   assert.equal(f['agents.subOrchs'], 1);
-  assert.equal(Object.keys(f).length, 40);
+  assert.equal(Object.keys(f).length, 42);
   assert.ok(Object.values(f).every((v) => typeof v === 'number' || typeof v === 'boolean'));
 });
 
@@ -146,6 +146,44 @@ test('opus 2 warns', () => {
   const r = validateConfig({ agents: { fast: { opus: 2 } } });
   assert.deepEqual(r.errors, []);
   assert.ok(r.warnings.some((w) => w.includes('agents.fast.opus') && w.includes('5h window')));
+});
+
+test('gate.timerMin at 60 or above is an error, 59 is fine', () => {
+  assert.ok(hasErrorFor(validateConfig({ gate: { timerMin: 60 } }), 'gate.timerMin'));
+  assert.ok(hasErrorFor(validateConfig({ gate: { timerMin: 90 } }), 'gate.timerMin'));
+  const ok = validateConfig({ gate: { timerMin: 59 }, cache: { warmWindowMin: 59 } });
+  assert.deepEqual([ok.errors, ok.warnings], [[], []]);
+});
+
+test('gate.timerMin above cache.warmWindowMin warns, does not refuse', () => {
+  const r = validateConfig({ gate: { timerMin: 55 } });
+  assert.deepEqual(r.errors, []);
+  assert.ok(r.warnings.some((w) => w.startsWith('gate.timerMin above cache.warmWindowMin')));
+  assert.deepEqual(validateConfig({ gate: { timerMin: 50 } }).warnings, []);
+});
+
+test('cache.keepWarm is a boolean, off by default; keepWarmMaxMin a whole number', () => {
+  assert.equal(DEFAULTS.cache.keepWarm, false);
+  assert.equal(DEFAULTS.cache.keepWarmMaxMin, 180);
+  assert.ok(hasErrorFor(validateConfig({ cache: { keepWarm: 'on' } }), 'cache.keepWarm'));
+  assert.ok(hasErrorFor(validateConfig({ cache: { keepWarmMaxMin: 0 } }), 'cache.keepWarmMaxMin'));
+  assert.ok(hasErrorFor(validateConfig({ cache: { keepWarmMaxMin: 1.5 } }), 'cache.keepWarmMaxMin'));
+  assert.deepEqual(validateConfig({ cache: { keepWarm: true, keepWarmMaxMin: 240 } }), { errors: [], warnings: [] });
+});
+
+test('keepWarm on with keepWarmMaxMin at or below warmWindowMin warns', () => {
+  const r = validateConfig({ cache: { keepWarm: true, keepWarmMaxMin: 50 } });
+  assert.deepEqual(r.errors, []);
+  assert.ok(r.warnings.some((w) => w.startsWith('cache.keepWarmMaxMin at or below cache.warmWindowMin')));
+  assert.deepEqual(validateConfig({ cache: { keepWarmMaxMin: 50 } }).warnings, []);
+});
+
+test('loadConfig: gate.timerMin 60 falls back to its default, keepWarm from the file applies', () => {
+  const r = loadConfig(envWithFile(JSON.stringify({ gate: { timerMin: 60 }, cache: { keepWarm: true } })));
+  assert.equal(r.config.gate.timerMin, DEFAULTS.gate.timerMin);
+  assert.equal(r.config.cache.keepWarm, true);
+  assert.deepEqual(r.fallbacks, ['gate.timerMin']);
+  assert.ok(hasErrorFor(r, 'gate.timerMin'));
 });
 
 test('config-dir: CLAUDE_CONFIG_DIR wins when non-blank, else ~/.claude', () => {

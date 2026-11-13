@@ -99,6 +99,20 @@ test('nestor body stops its timers and hands HANDOFF-TEXT to the controller', ()
   assert.match(b, /The controller then writes it to the handoff file or passes it to the next sub-orchestrator/);
 });
 
+test('grunt uses exactly the reply channel the task names', () => {
+  const b = A.grunt.body;
+  assert.match(b, /`REPLY: text` \(your caller is the main session\): don't use `SendMessage`/);
+  assert.match(b, /`REPLY: message` \(your caller is a sub-orchestrator\): send the reply with `SendMessage`/);
+  assert.match(b, /end your turn with the single line `TASK <id>: sent` and nothing else/);
+});
+
+test('nestor body: REPLY message, no timer for workers, KEEPWARM answer', () => {
+  const b = A.nestor.body;
+  assert.match(b, /carries `REPLY: message`/);
+  assert.match(b, /need no timer: a running background agent is pending/);
+  assert.match(b, /`KEEPWARM <n>`.*single word `OK`: no tool call, no tick/);
+});
+
 test('grunt sends SendMessage only to the from id of its task', () => {
   const b = A.grunt.body;
   assert.match(b, /Use `SendMessage` only to reply to the `from` id of the task you are doing; never message any other agent\./);
