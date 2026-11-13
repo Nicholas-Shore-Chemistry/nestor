@@ -8,6 +8,12 @@
 - Usage log lines carry `tag`, `session` and `event` (`usage-gate.mjs` / `tick.mjs --event`); stdout is unchanged.
 - New `scripts/calibrate.mjs`: start-up tokens, growth per turn and weighted cost per agent type, `pct_per_mtok` fitted
   from the usage log, and `burn_pct` per finished agent. Measurement only; no gate reads it yet.
+- `nestor:nestor` and `nestor:worker` now declare a `tools:` list, so they no longer load every tool definition, skill description and deferred tool name at start. Before: `nestor:grunt` about 15.0k, `nestor:worker` about 40.7k subagent tokens. After values are pending live verification. A worker task that needs MCP tools, web access or skills goes to an ordinary agent type.
+
+## 0.1.1
+
+- Depend on ctx-meter `^0.5.0`. For 0.x versions a caret range stays within the minor version, so `^0.4.0`
+  never resolved ctx-meter 0.5.0 (brief report, faster `ctx-check`, `ctx-check --usage`).
 
 ## 0.1.0
 
