@@ -85,7 +85,7 @@ test('timer stop, HANDOFF-TEXT reader, grunt reply limit and headless rule prese
 });
 
 test('scripts use <root>', () => {
-  for (const s of ['<root>/scripts/usage-gate.mjs', '<root>/scripts/ctx.mjs', '<root>/scripts/config.mjs --print']) {
+  for (const s of ['<root>/scripts/usage-gate.mjs', '<root>/scripts/ctx.mjs', '<root>/scripts/tick.mjs', '<root>/scripts/config.mjs --print']) {
     assert.ok(both.includes(s), `missing ${s}`);
   }
   assert.ok(!both.includes('${CLAUDE_PLUGIN_ROOT}'), 'rules must not use ${CLAUDE_PLUGIN_ROOT}');
@@ -107,6 +107,6 @@ test('names and heads', () => {
 });
 
 test('length limits', () => {
-  assert.ok(lineCount(core) <= 195, `core.md has ${lineCount(core)} lines`);
+  assert.ok(lineCount(core) <= 208, `core.md has ${lineCount(core)} lines`);
   assert.ok(lineCount(workflow) <= 100, `workflow.md has ${lineCount(workflow)} lines`);
 });

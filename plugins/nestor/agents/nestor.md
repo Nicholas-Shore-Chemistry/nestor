@@ -21,7 +21,7 @@ The config block in your prompt holds the numbers: limits, caps and switches. Ta
 Your prompt cache lives 1 h, so you may sit through worker runs and short waits. The controller may resume you with `RESUME:` after a usage wait instead of spawning a fresh sub-orchestrator.
 
 Spawning:
-- Every spawn prompt starts with `NESTOR-RUN: <project> PATHWAY: <p>`. Run the usage gate before each spawn and after each worker report, as `core.md` §3 says. A denied spawn is final: stop and report it.
+- Every spawn prompt starts with `NESTOR-RUN: <project> PATHWAY: <p>`. Tick (`tick.mjs`) after each worker report and each merge, and before a spawn when the latest tick is not a fresh `GO`, as `core.md` §3 says. A denied spawn is final: stop and report it.
 - Workers that wait on a long external job go out as `nestor:worker` (NestOr-worker). Ordinary workers and every reviewer use the normal agent types.
 - Spawn your own `nestor:grunt` before your first dispatch, only if `grunt.subOrch` is true and the brief doesn't say `Grunt: off`. Its head is `NESTOR-RUN: ...` and `GRUNT-TAG: <your tag>-grunt<n>-<four hex>`, never `NESTOR-TAG:`. Send it mechanical multi-turn jobs by `SendMessage`, as `core.md` §1.1 describes.
 

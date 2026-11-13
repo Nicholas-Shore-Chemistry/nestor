@@ -33,8 +33,8 @@ context. So:
   own: one function or file section, one endpoint, one view. Size each task to finish well inside `worker.stopTurns`.
 - **Brief.** One self-contained brief file per task: the goal, the interfaces it uses, the files it may touch,
   acceptance tests, and explicit boundaries. Hand over files, not history.
-- **Dispatch.** Pick model and effort from §4, within the pathway limits of `core.md` §2, and only after the gate
-  says `GO`.
+- **Dispatch.** Pick model and effort from §4, within the pathway limits of `core.md` §2, and only on a `GO` tick that
+  `core.md` §3 still lets you rely on.
 - **Implement.** The worker writes the code, runs the tests, commits and writes its report into its handoff file,
   `<project>/orchestration/HANDOFF-<wp>-<task>.md` (a reviewer: `HANDOFF-<wp>-review<n>.md`). At `worker.stopTurns`
   turns, or earlier if its context nears autocompact, it stops, writes the handoff (done, open, next step) and reports.

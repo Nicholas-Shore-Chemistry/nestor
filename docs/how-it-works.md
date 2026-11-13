@@ -49,8 +49,11 @@ headless run (`claude -p`) writes none. Within a session, the snapshots keep ref
 only old data and answers `NO-DATA`.
 
 ```
-node <root>/scripts/usage-gate.mjs --path <slow|fast> --action <orch|worker|opus> [--wait] [--max-wait-min <n>] [--poll-sec <n>] [--log <file>]
+node <root>/scripts/usage-gate.mjs --path <slow|fast> --action <orch|worker|opus> [--wait] [--max-wait-min <n>] [--poll-sec <n>] [--log <file>] [--brief]
 ```
+
+`--brief` prints one short line instead of the JSON: verdict, `5h`, `7d`, `reset` (UTC time), `wait` (minutes), `kill`, `now`,
+and `reason` when the verdict is not `GO`. The JSON stays the default; the hook and scripts use it.
 
 `--action` is `orch` for a new sub-orchestrator or a run start, `opus` for an Opus agent, and `worker` for everything
 else. The script prints one JSON line with `verdict`, `reason`, `hint`, `resets_at`, `wait_min`, `kill_workers`,
@@ -128,7 +131,7 @@ verdict, the first lines of the prompt). It is off by default. The guard creates
 
 ## What the run skill pre-approves
 
-`/nestor:run` pre-approves three scripts, `config.mjs`, `usage-gate.mjs` and `ctx.mjs`, each by its exact path, and a
+`/nestor:run` pre-approves four scripts, `config.mjs`, `usage-gate.mjs`, `ctx.mjs` and `tick.mjs`, each by its exact path, and a
 read of `${CLAUDE_PLUGIN_ROOT}/rules/*`, the plugin's own rules files and nothing else. The read grant is what lets the
 controller and the NestOr agent open `core.md` and `workflow.md` without a prompt on a fresh install. Claude Code applies
 a skill's `allowed-tools` to the agents the skill spawns, so one entry covers both. The grants hold in the skill's own
@@ -145,9 +148,30 @@ Everything else needs your own allow rules. NestOr's own steps are single plain 
 code. The commands a brief asks for (your tests, your build) and edits to project files outside `orchestration/`
 depend on your settings. A headless run (`claude -p`) denies anything that isn't allowed, and the agents stop.
 
+## The tick
+
+Each tool call of an orchestrator re-reads its whole context, so the rules ask for one call per event, not one per
+script. After every worker report and every merge, `tick.mjs` runs the gate (same code, same `--log`, same exit
+codes) and the context check, and prints one line:
+
+```
+node <root>/scripts/tick.mjs --path <slow|fast> --action <orch|worker|opus> [--tag <tag> | --session-id <id>] [--log <file>] [--json]
+GO 5h=37 7d=17 reset=11:40Z wait=212 ctx=87k turns=41 kill=0 now=2026-11-13T08:28Z
+```
+
+A verdict other than `GO` adds `reason="..."`. `NO-DATA` adds `needs_reading=1` when the window has reset and no
+reading exists yet, and a headless session adds `headless=1`. If the context check fails (ctx-meter missing, no
+transcript found), the line says `ctx=?`; the verdict and the exit code do not change. `--json` prints
+`{"gate": ..., "ctx": ...}` with the full objects. The sub-orchestrator passes `--tag`, the controller
+`--session-id`.
+
+Before a spawn no extra gate call is needed while the latest tick is `GO`, younger than `gate.freshMin` and nothing was
+dispatched since: the spawn guard hook gates the spawn anyway. The check before a `RESUME` by `SendMessage` is still made,
+because the hook does not see that message. A sub-orchestrator's `CACHE:` line takes `now` and `reset` from its last tick.
+
 ## Context caps
 
-Every agent's context is re-read on every turn, so the caps keep it short. `ctx.mjs` reports an agent's context size
+Every agent's context is re-read on every turn, so the caps keep it short. The tick carries the reading; `ctx.mjs` alone is for a caller with no gate (the grunt). It reports an agent's context size
 by running ctx-meter's `ctx-check`:
 
 ```
