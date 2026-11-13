@@ -182,6 +182,36 @@ Before a spawn no extra gate call is needed while the latest tick is `GO`, young
 dispatched since: the spawn guard hook gates the spawn anyway. The check before a `RESUME` by `SendMessage` is still made,
 because the hook does not see that message. A sub-orchestrator's `CACHE:` line takes `now` and `reset` from its last tick.
 
+### The usage log and `calibrate.mjs`
+
+Every gate and tick call with `--log` appends its result to `orchestration/usage-log.jsonl`. With `--event` the line
+also says why it was read (`spawn:<agent type>`, `report:<agent type>`, `merge`, `wait`, `resume`, `tick`), and it
+carries the caller's `tag` and `session` (`--session-id`, else `CLAUDE_CODE_SESSION_ID`). None of this changes the
+verdict or what the script prints.
+
+After a run, the user can measure what it cost:
+
+```
+node <root>/scripts/calibrate.mjs --log orchestration/usage-log.jsonl [--session-id <id>] [--transcripts <dir>] [--out <file> | --no-write]
+```
+
+It reads the log and the transcripts of the run's sessions (main transcript and every sub-agent) and prints one JSON
+object, also written to `<config>/nestor/calibration.json`:
+
+- `agents`: per agent type and model, start-up tokens (median, max), the share of the start-up served from cache,
+  growth per turn, turns, and weighted token-equivalents (cache read 0.1, input 1, cache write 1.25 for 5 min and 2 for
+  1 h, output 5, the API price ratios).
+- `pct_per_mtok`: how many percent of the 5h window one million weighted token-equivalents cost, fitted by least
+  squares over intervals between log readings inside one window. Readings are whole percents, so an interval spans at
+  least 3 points. An interval is dropped when another session's statusline snapshot was updated inside it, or when the
+  run spent nothing in it. `residual_pct` is the fit's RMS error.
+- `burn_pct`: percent of the window per finished sub-orchestrator, worker, Opus agent and grunt (median, p90).
+
+The agent type comes from the sub-agent's `meta.json`, or, without it, from the tag line of its first message. A
+sandbox that cannot read `~/.claude/projects` can pass a usage-only mirror of the transcripts as `--transcripts`;
+messages without a timestamp count for the agent figures but not for the fit. Nothing in a run reads the calibration
+yet: it is the measurement a later dynamic gate will build on.
+
 ## Context caps
 
 Every agent's context is re-read on every turn, so the caps keep it short. The tick carries the reading; `ctx.mjs` alone is for a caller with no gate (the grunt). It reports an agent's context size

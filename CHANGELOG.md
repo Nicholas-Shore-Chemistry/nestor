@@ -5,6 +5,9 @@
 - Rules split by role (`core`, `workflow`, `controller`, `grunt-use`, `replies`); `config.mjs --print --role`.
 - Grunt rotation at 60k (`grunt.rotateK`), new `grunt.coldCtxK` 40. The two must satisfy `coldCtxK < rotateK`:
   a user config that sets only `grunt.coldCtxK` to 60 or more fails that check, and both keys fall back to defaults.
+- Usage log lines carry `tag`, `session` and `event` (`usage-gate.mjs` / `tick.mjs --event`); stdout is unchanged.
+- New `scripts/calibrate.mjs`: start-up tokens, growth per turn and weighted cost per agent type, `pct_per_mtok` fitted
+  from the usage log, and `burn_pct` per finished agent. Measurement only; no gate reads it yet.
 
 ## 0.1.0
 
