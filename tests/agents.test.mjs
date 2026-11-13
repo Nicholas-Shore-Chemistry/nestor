@@ -41,13 +41,16 @@ test('frontmatter per agent matches the spec', () => {
   assert.equal(f('nestor').model, 'opus');
   assert.equal(f('nestor').effort, 'medium');
   assert.equal(f('nestor').background, 'true');
+  assert.equal(f('nestor').tools, 'Agent, Bash, Read, Edit, Write, Glob, Grep, SendMessage, TaskStop, ToolSearch');
   assert.deepEqual(f('nestor').experimental, { cacheTtl: '1h' });
-  assert.deepEqual(keys('nestor'), ['background', 'description', 'effort', 'experimental', 'model', 'name']);
+  assert.deepEqual(keys('nestor'), ['background', 'description', 'effort', 'experimental', 'model', 'name', 'tools']);
   assert.equal(f('worker').name, 'worker');
   assert.equal(f('worker').model, 'sonnet');
   assert.equal(f('worker').background, 'true');
+  assert.equal(f('worker').tools, 'Bash, Read, Edit, Write, Glob, Grep');
+  assert.match(f('worker').description, /MCP tools, web access or skills goes to an ordinary agent type/);
   assert.deepEqual(f('worker').experimental, { cacheTtl: '1h' });
-  assert.deepEqual(keys('worker'), ['background', 'description', 'experimental', 'model', 'name']);
+  assert.deepEqual(keys('worker'), ['background', 'description', 'experimental', 'model', 'name', 'tools']);
   assert.equal(f('grunt').name, 'grunt');
   assert.equal(f('grunt').model, 'haiku');
   assert.equal(f('grunt').background, 'true');

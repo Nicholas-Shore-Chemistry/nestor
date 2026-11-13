@@ -26,13 +26,13 @@ test('ctx-meter source is git-subdir from the public ctx-meter repo, path plugin
   });
 });
 
-test('plugin depends on ctx-meter ^0.4.0', () => {
-  assert.deepEqual(plugin().dependencies, [{ name: 'ctx-meter', version: '^0.4.0' }]);
+test('plugin depends on ctx-meter ^0.5.0', () => {
+  assert.deepEqual(plugin().dependencies, [{ name: 'ctx-meter', version: '^0.5.0' }]);
 });
 
-test('versions agree at 0.1.0', () => {
-  assert.equal(market().version, '0.1.0');
-  assert.equal(plugin().version, '0.1.0');
+test('versions agree at 0.1.1', () => {
+  assert.equal(market().version, '0.1.1');
+  assert.equal(plugin().version, '0.1.1');
 });
 
 test('plugin.json author Nicholas Shore, MIT', () => {
