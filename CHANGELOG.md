@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.2.3
 
 - Grunt: replies are filtered. New hook `reply-filter.mjs` on `SubagentHandback` (only for `nestor:grunt`) lets
   through `READY` or a coded report (`TASK <id>: DONE|FAILED|BOUNCED` … `GRUNT: tool_uses=… ctx=…`) and denies
