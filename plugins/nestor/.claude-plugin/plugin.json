@@ -1,7 +1,7 @@
 {
   "name": "nestor",
   "displayName": "NestOr",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Usage-aware orchestration for Claude Code: rules, a usage gate, a spawn guard and three agents.",
   "author": { "name": "Nicholas Shore" },
   "license": "MIT",
