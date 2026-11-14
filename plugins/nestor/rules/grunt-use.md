@@ -25,10 +25,10 @@ config (`core.md` §1).
 
 ## 3. Tasks
 Tasks go by `SendMessage` to the same grunt, one at a time:
-`TASK <id>: GRUNT-TAG is <tag>. REPLY: <text|message>. <numbered steps, exact commands, paths, what counts as pass, where long output goes>`.
+`TASK <id>: GRUNT-TAG is <tag>. <numbered steps, exact commands, paths, what counts as pass, where long output goes>`.
 The tag is required: the message reaches the grunt under a raw agent id, and the tag tells it the task is yours.
-`REPLY:` names the one channel: the controller always writes `REPLY: text` (its end-of-turn text reaches the main
-session), a sub-orchestrator always `REPLY: message` (`SendMessage` back, then the one line `TASK <id>: sent`).
+The grunt has one reply channel, its hand-back (end-of-turn text). It reaches the agent that spawned the grunt, so
+you, once. No `REPLY:` line; the grunt has no `SendMessage`.
 - Pass conditions need the same care as a brief. Check them against the real state before you send.
 - **Git guard**, for every task that touches a git repo: the first and the last steps are both
   `git branch --show-current`, then `git show -s --oneline HEAD`, and the report quotes both readings on separate lines,
@@ -39,8 +39,8 @@ session), a sub-orchestrator always `REPLY: message` (`SendMessage` back, then t
   Otherwise the grunt reports only the tail.
 
 ## 4. Replies
-- With `REPLY: message` the grunt replies by `SendMessage` only to the `from` id of the task; it arrives between your
-  tool calls. With `REPLY: text` its reply is the task notification. A reply counts once, however it arrives.
+- The reply is the grunt's hand-back, from its agent id; it arrives between your tool calls or wakes you. A reply
+  counts once; a second copy of the same `TASK <id>` report is ignored.
 - A "completed" notification from a background grunt is its idle state, not its end. The next `SendMessage` to its
   agent id resumes the same agent with its history.
 - Its report is facts only, with its context from `node <root>/scripts/ctx.mjs` (a grunt has no gate). On `FAILED`

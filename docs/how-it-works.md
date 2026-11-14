@@ -295,16 +295,16 @@ The grunt is a Haiku agent that stays idle in the background and takes one mecha
 Briefing it and reading its reply costs the caller two turns, so a single call with short output is quicker to do
 yourself.
 
-It is optional, and little is known about whether it helps, so the defaults are cautious. `grunt.controller` is on, and
-`grunt.subOrch` is off.
+It is optional. `grunt.controller` and `grunt.subOrch` are both on by default: with one reply channel (0.2.1) a task
+costs the caller one short hand-back, which a chain of checks or tests easily pays back.
 A brief that says `Grunt: off` turns it off for that run, whatever the config says. Results so far come from one
 person's runs, so NestOr makes no claim about what the grunt does for your usage. If you want data of your own, keep
 a log and summarise it.
 
-Each task names its reply channel. The controller writes `REPLY: text`: the grunt sends no `SendMessage`, and its
-end-of-turn text reaches the main session once, as the task notification. A sub-orchestrator writes `REPLY: message`:
-the grunt sends the reply by `SendMessage` and ends its turn with the single line `TASK <id>: sent`, which is all the
-main session sees of it. A task without `REPLY:` gets both, as before.
+The grunt has one reply channel: its hand-back (end-of-turn text). Claude Code delivers it to the agent that spawned
+the grunt, so the controller's grunt reaches the main session and a sub-orchestrator's grunt reaches that
+sub-orchestrator, once. The grunt has no `SendMessage` tool. Up to 0.2.0 a sub-orchestrator asked for `REPLY: message`
+(a `SendMessage` reply, then `TASK <id>: sent`); the hand-back carried the report as well, so it arrived twice.
 
 Every task starts and ends with a git guard: the grunt reports the branch and HEAD it saw first and last, so a task
 that switched branches shows up as failed. A grunt is rotated when its context passes `grunt.rotateK`, and replaced
@@ -435,7 +435,7 @@ of context, and `Min` values are minutes.
 | `agents.fast.opusSlots` | `2` | Fast pathway: worker slots one Opus worker takes. |
 | `agents.subOrchs` | `1` | Sub-orchestrators at a time at most. |
 | `grunt.controller` | `true` | The controller keeps a grunt. |
-| `grunt.subOrch` | `false` | Each sub-orchestrator keeps a grunt. |
+| `grunt.subOrch` | `true` | Each sub-orchestrator keeps a grunt. |
 | `grunt.rotateK` | `60` | A grunt is replaced at this context size. A grunt keeps no state worth keeping, so it rotates early. |
 | `grunt.coldIdleMin` | `50` | Idle minutes after which a grunt's cache counts as cold. |
 | `grunt.coldCtxK` | `40` | A cold grunt above this context size is replaced, not woken. Below `grunt.rotateK`. |

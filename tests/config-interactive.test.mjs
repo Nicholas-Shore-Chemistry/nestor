@@ -62,9 +62,9 @@ test('invalid final state writes nothing and exits 2', () => {
 
 test('CRLF input works', () => {
   const d = tempDir();
-  const r = run(d, ['--interactive'], answers({ 'weekly.start': '80', 'grunt.subOrch': 'on' }, '\r\n'));
+  const r = run(d, ['--interactive'], answers({ 'weekly.start': '80', 'grunt.subOrch': 'off' }, '\r\n'));
   assert.equal(r.code, 0, r.err);
-  assert.deepEqual(readCfg(d), { weekly: { start: 80 }, grunt: { subOrch: true } });
+  assert.deepEqual(readCfg(d), { weekly: { start: 80 }, grunt: { subOrch: false } });
 });
 
 test('preset ultra chosen interactively', () => {
@@ -76,7 +76,7 @@ test('preset ultra chosen interactively', () => {
 
 test('unknown preset asks again, standard writes {}', () => {
   const d = tempDir();
-  writeCfg(d, { grunt: { subOrch: true } });
+  writeCfg(d, { grunt: { subOrch: false } });
   const r = run(d, ['--interactive'], 'bogus\nstandard\n');
   assert.equal(r.code, 0, r.err);
   assert.deepEqual(readCfg(d), {});

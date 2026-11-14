@@ -54,7 +54,7 @@ test('frontmatter per agent matches the spec', () => {
   assert.equal(f('grunt').name, 'grunt');
   assert.equal(f('grunt').model, 'haiku');
   assert.equal(f('grunt').background, 'true');
-  assert.equal(f('grunt').tools, 'Bash, PowerShell, Read, Edit, Write, Glob, Grep, SendMessage, ToolSearch');
+  assert.equal(f('grunt').tools, 'Bash, PowerShell, Read, Edit, Write, Glob, Grep, ToolSearch');
   assert.deepEqual(f('grunt').experimental, { cacheTtl: '1h' });
   assert.deepEqual(keys('grunt'), ['background', 'description', 'experimental', 'model', 'name', 'tools']);
   for (const n of Object.keys(A)) assert.ok(f(n).description.length > 20, `${n} description`);
@@ -97,17 +97,14 @@ test('nestor body leaves the timer, command, handoff and keep-warm rules to the 
     assert.doesNotMatch(b, re);
 });
 
-test('grunt uses exactly the reply channel the task names', () => {
+test('grunt replies once, by hand-back only', () => {
   const b = A.grunt.body;
-  assert.match(b, /`REPLY: text` \(your caller is the main session\): don't use `SendMessage`/);
-  assert.match(b, /`REPLY: message` \(your caller is a sub-orchestrator\): send the reply with `SendMessage`/);
-  assert.match(b, /end your turn with the single line `TASK <id>: sent` and nothing else/);
-});
-
-test('grunt sends SendMessage only to the from id of its task', () => {
-  const b = A.grunt.body;
-  assert.match(b, /Use `SendMessage` only to reply to the `from` id of the task you are doing; never message any other agent\./);
-  assert.match(b, /counts a reply that arrives both ways once/);
+  assert.match(b, /Reply once, with your end-of-turn text \(or a `SubagentHandback` call\): it reaches the agent that spawned you/);
+  assert.match(b, /Never send a reply by `SendMessage` and never repeat a reply/);
+  assert.match(b, /A `REPLY:` line in a task \(from NestOr 0\.2\.0 or older\) changes nothing: ignore it\./);
+  assert.match(b, /- Never message any agent\./);
+  assert.doesNotMatch(b, /TASK <id>: sent/);
+  assert.doesNotMatch(b, /`from` id/);
 });
 
 test('worker body waits in the background, skips the gate and stops at worker.stopTurns', () => {
