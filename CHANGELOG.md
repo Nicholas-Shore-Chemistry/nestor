@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.2.5
 
 - Grunt: a `sleep` named in a task runs again. The rule "Never use `sleep`" (meant for the grunt's own waits) made
   the grunt refuse a task's `sleep 1800` step and reply `FAILED` at once (live check 3 on 0.2.4). The rule now forbids
