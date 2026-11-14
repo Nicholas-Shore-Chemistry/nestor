@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.2.2
 
 - Grunt: a long job no longer ends its turn. Since 0.2.1 the hand-back is the grunt's only reply, so a grunt that
   started a background job and ended its turn sent an early `IN PROGRESS` reply, and its real report was refused by
