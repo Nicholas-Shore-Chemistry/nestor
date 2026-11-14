@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- Grunt: a `sleep` named in a task runs again. The rule "Never use `sleep`" (meant for the grunt's own waits) made
+  the grunt refuse a task's `sleep 1800` step and reply `FAILED` at once (live check 3 on 0.2.4). The rule now forbids
+  only waiting with a `sleep` of its own; a `sleep` step runs like any other job.
+
 ## 0.2.4
 
 - Grunt: a long job ends its wait as soon as it is done. The grunt starts it with the new `scripts/bg.mjs --done
