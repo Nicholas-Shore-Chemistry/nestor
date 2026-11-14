@@ -78,6 +78,7 @@ test('reply channel, timer purpose and keep-warm rules present', () => {
   assert.match(replies, /The timer only keeps something pending/);
   assert.match(replies, /answer it with the next timer call only, no text/);
   assert.match(replies, /needs no timer for them; the timer is for `SendMessage` replies only/);
+  assert.match(controller, /never on a grunt reply, a "completed" notice or a timer/);
   assert.match(controller, /^## 3\. Keep-warm$/m);
   assert.match(core, /On `KEEPWARM <n>`: reply with the single word `OK`, no tool call, no tick/);
   assert.match(controller, /at least five points below `fiveHour\.killWorkers`/);

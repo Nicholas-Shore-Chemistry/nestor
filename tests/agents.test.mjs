@@ -107,6 +107,14 @@ test('grunt replies once, by hand-back only', () => {
   assert.doesNotMatch(b, /`from` id/);
 });
 
+test('grunt waits on a long job inside the turn, never replies in progress', () => {
+  const b = A.grunt.body;
+  assert.match(b, /Never end your turn before every step of the task is done: ending your turn sends your one reply to this task, and a later reply is refused\./);
+  assert.match(b, /Never reply `IN PROGRESS`\./);
+  assert.match(b, /wait for it in the same turn with foreground `sleep 540` calls \(Bash timeout 600000\)/);
+  assert.doesNotMatch(b, /one long foreground command or a background Bash command/);
+});
+
 test('worker body waits in the background, skips the gate and stops at worker.stopTurns', () => {
   const b = A.worker.body;
   assert.match(b, /`worker\.stopTurns`/);

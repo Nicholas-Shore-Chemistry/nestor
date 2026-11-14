@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+- Grunt: a long job no longer ends its turn. Since 0.2.1 the hand-back is the grunt's only reply, so a grunt that
+  started a background job and ended its turn sent an early `IN PROGRESS` reply, and its real report was refused by
+  the harness (one hand-back per task message). The grunt now waits inside the turn: a job over 9 minutes runs in the
+  background, and the grunt checks it after each foreground `sleep 540`.
+- Controller: tick only after a sub-orchestrator report or a merge and before a spawn, never on a grunt reply,
+  a "completed" notice or a timer (live check 3 showed three needless ticks).
+
 ## 0.2.1
 
 - Grunt replies arrived twice to a sub-orchestrator: the grunt sent its report by `SendMessage` and its hand-back

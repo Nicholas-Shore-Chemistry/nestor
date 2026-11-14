@@ -41,7 +41,8 @@ it prints the one-line form instead (`core.md` §3).
   `--wait` there returns at once (`wait_skipped`). With `NESTOR_HEADLESS_WAIT=1` set, the gate prints `headless: false`.
 - Until every sub-orchestrator has returned a return word (`core.md` §6), end no turn with nothing pending; after any
   other notification, keep the pending timer, or start one if none is pending (`replies.md`). Relay a grunt reply only
-  if the sub-orchestrator reports it never came.
+  if the sub-orchestrator reports it never came. Tick only as `core.md` §3 says (after a sub-orchestrator report or a
+  merge, before a spawn), never on a grunt reply, a "completed" notice or a timer.
 - A sub-orchestrator that returns `WAIT` waits at no cost in turns while you decide whether to resume it or spawn a
   fresh one. A fresh one re-reads brief, handoff and repo state; a resumed one is cheap only while its cache is warm:
   a 1 h cache from its last request for `nestor:nestor` (5 min in usage overage), 5 min for any other agent type. The
