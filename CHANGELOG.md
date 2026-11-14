@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.2.4
 
 - Grunt: a long job ends its wait as soon as it is done. The grunt starts it with the new `scripts/bg.mjs --done
   <file> -- <command>`, which writes `EXIT <code>` to `<file>` at the end, and waits with `wait.mjs --file <file>`.
