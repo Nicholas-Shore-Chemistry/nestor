@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- Grunt: a long job ends its wait as soon as it is done. The grunt starts it with the new `scripts/bg.mjs --done
+  <file> -- <command>`, which writes `EXIT <code>` to `<file>` at the end, and waits with `wait.mjs --file <file>`.
+  Live check 3 on 0.2.3 showed up to 9 minutes of extra delay: `wait.mjs` alone could not see a background job end,
+  and sandboxed Bash calls do not share a process list. `bg.mjs` is not pre-approved, since it runs any command.
+
 ## 0.2.3
 
 - Grunt: replies are filtered. New hook `reply-filter.mjs` on `SubagentHandback` (only for `nestor:grunt`) lets
