@@ -17,6 +17,7 @@ test('run skill pre-approves only named scripts', () => {
     'Bash(node "${CLAUDE_PLUGIN_ROOT}/scripts/usage-gate.mjs" *)',
     'Bash(node "${CLAUDE_PLUGIN_ROOT}/scripts/ctx.mjs" *)',
     'Bash(node "${CLAUDE_PLUGIN_ROOT}/scripts/tick.mjs" *)',
+    'Bash(node "${CLAUDE_PLUGIN_ROOT}/scripts/wait.mjs" *)',
     'Read(${CLAUDE_PLUGIN_ROOT}/rules/*)',
     'Edit(./orchestration/HANDOFF-*.md)',
     'Write(./orchestration/HANDOFF-*.md)',
@@ -25,7 +26,7 @@ test('run skill pre-approves only named scripts', () => {
     'Edit(./orchestration/rules.md)',
     'Write(./orchestration/rules.md)',
   ]);
-  assert.equal(bash.length, 4);
+  assert.equal(bash.length, 5);
 });
 
 test('every file grant of every skill is scoped: the rules read, and orchestration/ writes for run only', () => {

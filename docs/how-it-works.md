@@ -146,7 +146,7 @@ verdict, the first lines of the prompt). It is off by default. The guard creates
 
 ## What the run skill pre-approves
 
-`/nestor:run` pre-approves four scripts, `config.mjs`, `usage-gate.mjs`, `ctx.mjs` and `tick.mjs`, each by its exact path, and a
+`/nestor:run` pre-approves five scripts, `config.mjs`, `usage-gate.mjs`, `ctx.mjs`, `tick.mjs` and `wait.mjs` (the grunt's wait), each by its exact path, and a
 read of `${CLAUDE_PLUGIN_ROOT}/rules/*`, the plugin's own rules files and nothing else. The read grant is what lets the
 controller and the NestOr agent open their rules files without a prompt on a fresh install. Claude Code applies
 a skill's `allowed-tools` to the agents the skill spawns, so one entry covers both. The grants hold in the skill's own
@@ -305,6 +305,19 @@ The grunt has one reply channel: its hand-back (end-of-turn text). Claude Code d
 the grunt, so the controller's grunt reaches the main session and a sub-orchestrator's grunt reaches that
 sub-orchestrator, once. The grunt has no `SendMessage` tool. Up to 0.2.0 a sub-orchestrator asked for `REPLY: message`
 (a `SendMessage` reply, then `TASK <id>: sent`); the hand-back carried the report as well, so it arrived twice.
+
+Since the hand-back is the only channel, an interim note ("in progress", "waiting for the job") would use it up: the
+harness accepts one hand-back per task message and refuses the real report later. `reply-filter.mjs`, a hook on
+`SubagentHandback` that acts only for `nestor:grunt`, therefore lets through only `READY` or a report that starts with
+`TASK <id>: DONE|FAILED|BOUNCED` and has the `GRUNT: tool_uses=… ctx=…` line. Anything else is denied: the caller never
+sees it, and the grunt is told to finish the task and reply in that shape. A denial costs one grunt turn and no turn of
+the caller. After two denials in the same task the next message passes, so the filter cannot hold a run up. It fails
+open on its own errors, and `NESTOR_FILTER_LOG=<file>` writes one line per decision. A grunt that ends its turn with
+plain text instead of a `SubagentHandback` call is not filtered; the grunt's rules ask for the call.
+
+A grunt waits for a long job inside its turn with `wait.mjs --max 540` (optionally `--file <path> [--grep <text>]` to
+return as soon as the job writes its end marker). Claude Code blocks a foreground `sleep` in agents; `wait.mjs` is a
+plain `node` wait and is pre-approved by `/nestor:run`.
 
 Every task starts and ends with a git guard: the grunt reports the branch and HEAD it saw first and last, so a task
 that switched branches shows up as failed. A grunt is rotated when its context passes `grunt.rotateK`, and replaced
