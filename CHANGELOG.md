@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+- Grunt replies arrived twice to a sub-orchestrator: the grunt sent its report by `SendMessage` and its hand-back
+  carried it as well. In Claude Code 2.1.325 a background agent's hand-back reaches the agent that spawned it, not the
+  main session. The grunt now has one reply channel, its hand-back; `REPLY: text|message` is gone from the task format
+  (a stale `REPLY:` line is ignored) and `SendMessage` is no longer in the grunt's tools.
+- `core.md` §3/§4: `--path <slow|fast>` instead of `--path <p>` (a sub-orchestrator passed a project path).
+
 ## 0.2.0
 
 - Rules split by role (`core`, `workflow`, `controller`, `grunt-use`, `replies`); `config.mjs --print --role`.

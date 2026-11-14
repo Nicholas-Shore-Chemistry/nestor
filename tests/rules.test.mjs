@@ -64,16 +64,16 @@ test('timer stop, HANDOFF-TEXT reader, grunt reply limit and headless rule prese
   assert.match(controller, /The controller writes that text to `HANDOFF-<wp>\.md`/);
   assert.match(controller, /passes the text verbatim in the next `RESUME` or spawn prompt/);
   assert.match(controller, /quotes the text in its final report/);
-  assert.match(grunt, /replies by `SendMessage` only to the `from` id of the task/);
+  assert.match(grunt, /The reply is the grunt's hand-back, from its agent id/);
   assert.match(grunt, /counts once/);
   assert.match(controller, /\*\*Headless\*\*, instead of the above \(the gate prints `headless: true`\)/);
   assert.match(controller, /`NESTOR_HEADLESS_WAIT=1`/);
 });
 
 test('reply channel, timer purpose and keep-warm rules present', () => {
-  assert.match(grunt, /REPLY: <text\|message>/);
-  assert.match(grunt, /the controller always writes `REPLY: text`/);
-  assert.match(grunt, /a sub-orchestrator always `REPLY: message`/);
+  assert.match(grunt, /The grunt has one reply channel, its hand-back \(end-of-turn text\)/);
+  assert.match(grunt, /No `REPLY:` line; the grunt has no `SendMessage`/);
+  assert.doesNotMatch(all, /REPLY: <text\|message>|`REPLY: message`|`REPLY: text`/);
   assert.doesNotMatch(all, /a reply may come twice/);
   assert.match(replies, /The timer only keeps something pending/);
   assert.match(replies, /answer it with the next timer call only, no text/);

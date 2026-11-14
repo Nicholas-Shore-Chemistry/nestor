@@ -41,7 +41,7 @@ arguments (fix the command, never treat it as `GO`). The exit code is zero only 
 `needs_reading`: the window has reset and no reading of the new one exists yet; any model turn brings one within about
 a minute. `--action`: `orch` for a new sub-orchestrator or a run start, `opus` for an Opus agent, `worker` for the rest.
 - **The tick.** After every worker report and every merge, one call gives verdict and context:
-  `node <root>/scripts/tick.mjs --path <p> --action <orch|worker|opus> --tag "<tag>" --event <e> --log orchestration/usage-log.jsonl`
+  `node <root>/scripts/tick.mjs --path <slow|fast> --action <orch|worker|opus> --tag "<tag>" --event <e> --log orchestration/usage-log.jsonl`
   (the controller: `--session-id "<its session id>"` for `--tag`). `<e>` names the occasion: `report:<agent type>`, `merge`,
   `spawn:<agent type>`, `resume`, `wait` (before a `WAIT` reply), else `tick`. One line, the gate's exit codes: `GO 5h=<n>
   7d=<n> reset=<ISO> wait=<min> ctx=<n>k turns=<n> kill=<flag> now=<ISO>`. Non-`GO` adds `reason="..."`, `NO-DATA` the flag
@@ -61,7 +61,7 @@ The controller's part: `controller.md` §2.
 - `NO-START` with nothing running, or `STOP`: let running workers finish (don't stop them), finish the current atomic
   step, record what merged, write the handoff, and return `WAIT` with the `CACHE:` line (§4.1).
 - A short wait in place only when the gate's `wait_min` is at most `gate.shortWaitMin`: a foreground
-  `node <root>/scripts/usage-gate.mjs --path <p> --action worker --wait --event wait --log orchestration/usage-log.jsonl`
+  `node <root>/scripts/usage-gate.mjs --path <slow|fast> --action worker --wait --event wait --log orchestration/usage-log.jsonl`
   with `--max-wait-min` set to `gate.shortWaitChunkMin` (Bash timeout above that), at most `gate.shortWaitTries` times.
 - On `RESUME`: tick again (`--action worker`), re-read only the handoff and the git log since it, then go on; not the
   brief. On `KEEPWARM <n>`: reply with the single word `OK`, no tool call, no tick, nothing else.

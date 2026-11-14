@@ -301,10 +301,10 @@ A brief that says `Grunt: off` turns it off for that run, whatever the config sa
 person's runs, so NestOr makes no claim about what the grunt does for your usage. If you want data of your own, keep
 a log and summarise it.
 
-Each task names its reply channel. The controller writes `REPLY: text`: the grunt sends no `SendMessage`, and its
-end-of-turn text reaches the main session once, as the task notification. A sub-orchestrator writes `REPLY: message`:
-the grunt sends the reply by `SendMessage` and ends its turn with the single line `TASK <id>: sent`, which is all the
-main session sees of it. A task without `REPLY:` gets both, as before.
+The grunt has one reply channel: its hand-back (end-of-turn text). Claude Code delivers it to the agent that spawned
+the grunt, so the controller's grunt reaches the main session and a sub-orchestrator's grunt reaches that
+sub-orchestrator, once. The grunt has no `SendMessage` tool. Up to 0.2.0 a sub-orchestrator asked for `REPLY: message`
+(a `SendMessage` reply, then `TASK <id>: sent`); the hand-back carried the report as well, so it arrived twice.
 
 Every task starts and ends with a git guard: the grunt reports the branch and HEAD it saw first and last, so a task
 that switched branches shows up as failed. A grunt is rotated when its context passes `grunt.rotateK`, and replaced
