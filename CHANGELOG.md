@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.2.1
 
 - Grunt replies arrived twice to a sub-orchestrator: the grunt sent its report by `SendMessage` and its hand-back
   carried it as well. In Claude Code 2.1.325 a background agent's hand-back reaches the agent that spawned it, not the

@@ -30,9 +30,9 @@ test('plugin depends on ctx-meter ^0.5.0', () => {
   assert.deepEqual(plugin().dependencies, [{ name: 'ctx-meter', version: '^0.5.0' }]);
 });
 
-test('versions agree at 0.2.0', () => {
-  assert.equal(market().version, '0.2.0');
-  assert.equal(plugin().version, '0.2.0');
+test('versions agree at 0.2.1', () => {
+  assert.equal(market().version, '0.2.1');
+  assert.equal(plugin().version, '0.2.1');
 });
 
 test('plugin.json author Nicholas Shore, MIT', () => {
