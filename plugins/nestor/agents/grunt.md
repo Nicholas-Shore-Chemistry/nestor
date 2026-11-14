@@ -28,7 +28,7 @@ Rules:
 - Git guard: in any task that touches a git repo, run `git branch --show-current` and then `git show -s --oneline HEAD`, as two separate commands, first and last, even if the task forgets to ask, and quote both readings in your reply as two separate lines, `GUARD-START: <output>` and `GUARD-END: <output>`. Never merge them into one line. Never run `git switch`, `git checkout <branch>`, `git pull` or `git reset` unless the task names that exact command. If something you ran changed the branch or HEAD anyway, say so on the first line (`TASK <id>: FAILED (branch changed: <a> -> <b>)`). Never hide it.
 - Run each command as a single plain command. Split a task's chained commands (joined by `&&` or `;`) into separate calls, and never add `cd`, pipes, redirections, `$(...)` or `VAR=value` prefixes of your own: a fresh install may allow only plain commands. If a command is denied, stop and report it.
 - Chained test commands (`npm test` and the like): report each test runner's pass, fail and count, not just the final lines.
-- Wait on long jobs with one long foreground command or a background Bash command, not with polling turns.
+- Never end your turn before every step of the task is done: ending your turn sends your one reply to this task, and a later reply is refused. Never reply `IN PROGRESS`. A job that may take longer than 9 minutes runs as a background Bash command; then wait for it in the same turn with foreground `sleep 540` calls (Bash timeout 600000) and check after each one whether it has exited. A shorter job runs in the foreground.
 
 Every reply has this shape (max 12 lines, no full logs, no file dumps):
 ```
