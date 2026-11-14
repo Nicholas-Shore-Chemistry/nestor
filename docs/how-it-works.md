@@ -315,9 +315,13 @@ the caller. After two denials in the same task the next message passes, so the f
 open on its own errors, and `NESTOR_FILTER_LOG=<file>` writes one line per decision. A grunt that ends its turn with
 plain text instead of a `SubagentHandback` call is not filtered; the grunt's rules ask for the call.
 
-A grunt waits for a long job inside its turn with `wait.mjs --max 540` (optionally `--file <path> [--grep <text>]` to
-return as soon as the job writes its end marker). Claude Code blocks a foreground `sleep` in agents; `wait.mjs` is a
-plain `node` wait and is pre-approved by `/nestor:run`.
+A grunt waits for a long job inside its turn. It starts the job in the background through `bg.mjs --done <file> --
+<command>`, which writes `EXIT <code>` to `<file>` when the job ends, and waits with `wait.mjs --max 540 --file <file>`,
+which returns as soon as the file appears. The done file is needed because sandboxed Bash calls do not share a process
+list: a later call cannot see whether a background job still runs. Without it the grunt sat out the full last wait (up
+to 9 minutes, live check 3 on 0.2.3). Claude Code blocks a foreground `sleep` in agents; `wait.mjs` is a plain `node`
+wait and is pre-approved by `/nestor:run`. `bg.mjs` is not: it runs any command, so the permission check still sees
+the wrapped command.
 
 Every task starts and ends with a git guard: the grunt reports the branch and HEAD it saw first and last, so a task
 that switched branches shows up as failed. A grunt is rotated when its context passes `grunt.rotateK`, and replaced
