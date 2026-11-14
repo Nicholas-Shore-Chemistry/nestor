@@ -99,7 +99,8 @@ test('nestor body leaves the timer, command, handoff and keep-warm rules to the 
 
 test('grunt replies once, by hand-back only', () => {
   const b = A.grunt.body;
-  assert.match(b, /Reply once, with your end-of-turn text \(or a `SubagentHandback` call\): it reaches the agent that spawned you/);
+  assert.match(b, /Reply once, with a `SubagentHandback` call \(or your end-of-turn text\): it reaches the agent that spawned you/);
+  assert.match(b, /If it refuses your hand-back, nothing was delivered: do what it says, then reply\./);
   assert.match(b, /Never send a reply by `SendMessage` and never repeat a reply/);
   assert.match(b, /A `REPLY:` line in a task \(from NestOr 0\.2\.0 or older\) changes nothing: ignore it\./);
   assert.match(b, /- Never message any agent\./);
@@ -111,7 +112,9 @@ test('grunt waits on a long job inside the turn, never replies in progress', () 
   const b = A.grunt.body;
   assert.match(b, /Never end your turn before every step of the task is done: ending your turn sends your one reply to this task, and a later reply is refused\./);
   assert.match(b, /Never reply `IN PROGRESS`\./);
-  assert.match(b, /wait for it in the same turn with foreground `sleep 540` calls \(Bash timeout 600000\)/);
+  assert.match(b, /wait for it in the same turn with foreground `node "\$\{CLAUDE_PLUGIN_ROOT\}\/scripts\/wait\.mjs" --max 540` calls \(Bash timeout 600000/);
+  assert.match(b, /Never use `sleep`: Claude Code blocks it\./);
+  assert.doesNotMatch(b, /`sleep 540`/);
   assert.doesNotMatch(b, /one long foreground command or a background Bash command/);
 });
 

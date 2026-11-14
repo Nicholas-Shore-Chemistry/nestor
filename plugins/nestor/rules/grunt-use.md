@@ -28,7 +28,8 @@ Tasks go by `SendMessage` to the same grunt, one at a time:
 `TASK <id>: GRUNT-TAG is <tag>. <numbered steps, exact commands, paths, what counts as pass, where long output goes>`.
 The tag is required: the message reaches the grunt under a raw agent id, and the tag tells it the task is yours.
 The grunt has one reply channel, its hand-back (end-of-turn text). It reaches the agent that spawned the grunt, so
-you, once. No `REPLY:` line; the grunt has no `SendMessage`.
+you, once. No `REPLY:` line; the grunt has no `SendMessage`. A hook passes only `READY` or a coded report and sends
+interim notes back to the grunt (at most twice per task), so they never reach you.
 - Pass conditions need the same care as a brief. Check them against the real state before you send.
 - **Git guard**, for every task that touches a git repo: the first and the last steps are both
   `git branch --show-current`, then `git show -s --oneline HEAD`, and the report quotes both readings on separate lines,

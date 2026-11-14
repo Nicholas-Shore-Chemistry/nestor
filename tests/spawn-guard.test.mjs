@@ -152,7 +152,7 @@ test('audit line written only with NESTOR_GUARD_LOG', () => {
   assert.equal(fs.readdirSync(PLUGIN).some((f) => f.endsWith('.jsonl')), false);
 });
 
-test('hooks.json matches Agent|Task and uses CLAUDE_PLUGIN_ROOT', () => {
+test('hooks.json matches Agent|Task and SubagentHandback and uses CLAUDE_PLUGIN_ROOT', () => {
   const hooks = JSON.parse(fs.readFileSync(path.join(PLUGIN, 'hooks', 'hooks.json'), 'utf8'));
   assert.deepEqual(hooks, {
     hooks: {
@@ -160,6 +160,10 @@ test('hooks.json matches Agent|Task and uses CLAUDE_PLUGIN_ROOT', () => {
         {
           matcher: 'Agent|Task',
           hooks: [{ type: 'command', command: 'node "${CLAUDE_PLUGIN_ROOT}/scripts/spawn-guard.mjs"' }],
+        },
+        {
+          matcher: 'SubagentHandback',
+          hooks: [{ type: 'command', command: 'node "${CLAUDE_PLUGIN_ROOT}/scripts/reply-filter.mjs"' }],
         },
       ],
     },

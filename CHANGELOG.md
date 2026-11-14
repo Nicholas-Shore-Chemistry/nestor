@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased
+
+- Grunt: replies are filtered. New hook `reply-filter.mjs` on `SubagentHandback` (only for `nestor:grunt`) lets
+  through `READY` or a coded report (`TASK <id>: DONE|FAILED|BOUNCED` … `GRUNT: tool_uses=… ctx=…`) and denies
+  anything else, with a reminder to the grunt, at most twice per task. An interim note no longer uses up the grunt's one
+  hand-back, and the caller spends no turn on it (live check 3 on 0.2.2: an interim `FAILED (interim)` reply, the
+  real report refused, the run ended without the result).
+- Grunt: waits for a long job with the new `scripts/wait.mjs --max 540` instead of `sleep 540`, which Claude Code
+  blocks in the foreground. `wait.mjs` can return early on a file (`--file`, `--grep`) and is pre-approved by
+  `/nestor:run`.
+
 ## 0.2.2
 
 - Grunt: a long job no longer ends its turn. Since 0.2.1 the hand-back is the grunt's only reply, so a grunt that
