@@ -115,7 +115,9 @@ test('grunt waits on a long job inside the turn, never replies in progress', () 
   assert.match(b, /runs as a background Bash command `node "\$\{CLAUDE_PLUGIN_ROOT\}\/scripts\/bg\.mjs" --done <file> -- <command>`/);
   assert.match(b, /wait for it in the same turn with foreground `node "\$\{CLAUDE_PLUGIN_ROOT\}\/scripts\/wait\.mjs" --max 540 --file <file>` calls \(Bash timeout 600000/);
   assert.doesNotMatch(b, /add `--file <path>` when the task names a file/);
-  assert.match(b, /Never use `sleep`: Claude Code blocks it\./);
+  assert.match(b, /Never wait with a `sleep` of your own: Claude Code blocks a foreground `sleep`\./);
+  assert.match(b, /A `sleep` that is a step of the task is a job like any other: run it as the task says\./);
+  assert.doesNotMatch(b, /Never use `sleep`/);
   assert.doesNotMatch(b, /`sleep 540`/);
   assert.doesNotMatch(b, /one long foreground command or a background Bash command/);
 });
