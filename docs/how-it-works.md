@@ -295,8 +295,8 @@ The grunt is a Haiku agent that stays idle in the background and takes one mecha
 Briefing it and reading its reply costs the caller two turns, so a single call with short output is quicker to do
 yourself.
 
-It is optional, and little is known about whether it helps, so the defaults are cautious. `grunt.controller` is on, and
-`grunt.subOrch` is off.
+It is optional. `grunt.controller` and `grunt.subOrch` are both on by default: with one reply channel (0.2.1) a task
+costs the caller one short hand-back, which a chain of checks or tests easily pays back.
 A brief that says `Grunt: off` turns it off for that run, whatever the config says. Results so far come from one
 person's runs, so NestOr makes no claim about what the grunt does for your usage. If you want data of your own, keep
 a log and summarise it.
@@ -435,7 +435,7 @@ of context, and `Min` values are minutes.
 | `agents.fast.opusSlots` | `2` | Fast pathway: worker slots one Opus worker takes. |
 | `agents.subOrchs` | `1` | Sub-orchestrators at a time at most. |
 | `grunt.controller` | `true` | The controller keeps a grunt. |
-| `grunt.subOrch` | `false` | Each sub-orchestrator keeps a grunt. |
+| `grunt.subOrch` | `true` | Each sub-orchestrator keeps a grunt. |
 | `grunt.rotateK` | `60` | A grunt is replaced at this context size. A grunt keeps no state worth keeping, so it rotates early. |
 | `grunt.coldIdleMin` | `50` | Idle minutes after which a grunt's cache counts as cold. |
 | `grunt.coldCtxK` | `40` | A cold grunt above this context size is replaced, not woken. Below `grunt.rotateK`. |

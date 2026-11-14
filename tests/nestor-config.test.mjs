@@ -38,7 +38,7 @@ const PLAN_DEFAULTS = {
     fast: { workers: 4, reviewers: 1, opus: 1, opusSlots: 2 },
     subOrchs: 1,
   },
-  grunt: { controller: true, subOrch: false, rotateK: 60, coldIdleMin: 50, coldCtxK: 40 },
+  grunt: { controller: true, subOrch: true, rotateK: 60, coldIdleMin: 50, coldCtxK: 40 },
   worker: { stopTurns: 60, longWaitMin: 45 },
 };
 
@@ -85,7 +85,7 @@ test('mergeConfig keeps defaults for keys the file leaves out', () => {
 });
 
 test('diffFromDefaults round-trips through mergeConfig', () => {
-  const partial = { weekly: { start: 80 }, grunt: { subOrch: true }, agents: { fast: { workers: 3 } } };
+  const partial = { weekly: { start: 80 }, grunt: { subOrch: false }, agents: { fast: { workers: 3 } } };
   const merged = mergeConfig(partial);
   assert.deepEqual(diffFromDefaults(merged), partial);
   assert.deepEqual(mergeConfig(diffFromDefaults(merged)), merged);

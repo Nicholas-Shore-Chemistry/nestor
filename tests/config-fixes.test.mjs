@@ -72,9 +72,9 @@ test('config C4: rename is retried on a transient lock, bounded, and the temp fi
     if (++calls <= 2) throw Object.assign(new Error('locked'), { code: 'EPERM' });
     fs.renameSync(a, b);
   };
-  writeAtomic(file, { grunt: { subOrch: true } }, { rename: flaky, sleepMs: () => {} });
+  writeAtomic(file, { grunt: { subOrch: false } }, { rename: flaky, sleepMs: () => {} });
   assert.equal(calls, 3);
-  assert.deepEqual(readCfg(d), { grunt: { subOrch: true } });
+  assert.deepEqual(readCfg(d), { grunt: { subOrch: false } });
 
   let n = 0;
   const dead = () => {
@@ -97,21 +97,21 @@ test('config C4: rename is retried on a transient lock, bounded, and the temp fi
 test('config C5: a BOM file still reads and the source holds no raw BOM character', () => {
   const d = tempDir();
   writeCfg(d, '\uFEFF{"grunt":{"rotateK":120}}');
-  assert.equal(run(d, ['--set', 'grunt.subOrch=on']).code, 0);
-  assert.deepEqual(readCfg(d), { grunt: { subOrch: true, rotateK: 120 } });
+  assert.equal(run(d, ['--set', 'grunt.subOrch=off']).code, 0);
+  assert.deepEqual(readCfg(d), { grunt: { subOrch: false, rotateK: 120 } });
   assert.equal(fs.readFileSync(CONFIG_SCRIPT, 'utf8').includes('\uFEFF'), false);
 });
 
 test('config C6: unknown keys dropped on write are named on stderr, without values', () => {
   const d = tempDir();
-  writeCfg(d, { grunt: { subOrch: true, old: 'secret-value-77' }, bogus: 12345 });
+  writeCfg(d, { grunt: { subOrch: false, old: 'secret-value-77' }, bogus: 12345 });
   const r = run(d, ['--set', 'weekly.start=80']);
   assert.equal(r.code, 0, r.err);
   assert.match(r.err, /bogus/);
   assert.match(r.err, /grunt\.old/);
   assert.doesNotMatch(r.err + r.out, /secret-value-77|12345/);
   assert.equal(r.err.trim().split('\n').filter((l) => /dropped/.test(l)).length, 1);
-  assert.deepEqual(readCfg(d), { grunt: { subOrch: true }, weekly: { start: 80 } });
+  assert.deepEqual(readCfg(d), { grunt: { subOrch: false }, weekly: { start: 80 } });
 });
 
 test('config C6: no warning when nothing is dropped', () => {

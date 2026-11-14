@@ -34,7 +34,7 @@ export const DEFAULTS = deepFreeze({
     fast: { workers: 4, reviewers: 1, opus: 1, opusSlots: 2 },
     subOrchs: 1,
   },
-  grunt: { controller: true, subOrch: false, rotateK: 60, coldIdleMin: 50, coldCtxK: 40 },
+  grunt: { controller: true, subOrch: true, rotateK: 60, coldIdleMin: 50, coldCtxK: 40 },
   worker: { stopTurns: 60, longWaitMin: 45 },
 });
 

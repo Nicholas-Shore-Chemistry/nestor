@@ -6,7 +6,7 @@ import { tempDir, cfgFile, writeCfg, readCfg, run } from './config-helpers.mjs';
 
 test('--preset standard writes {}', () => {
   const d = tempDir();
-  writeCfg(d, { grunt: { subOrch: true } });
+  writeCfg(d, { grunt: { subOrch: false } });
   const r = run(d, ['--preset', 'standard']);
   assert.equal(r.code, 0);
   assert.deepEqual(readCfg(d), {});
@@ -27,11 +27,11 @@ test('--preset custom without TTY exits 5', () => {
   assert.equal(fs.existsSync(cfgFile(d)), false);
 });
 
-test('--set grunt.subOrch=on writes only that key', () => {
+test('--set grunt.subOrch=off writes only that key', () => {
   const d = tempDir();
-  const r = run(d, ['--set', 'grunt.subOrch=on']);
+  const r = run(d, ['--set', 'grunt.subOrch=off']);
   assert.equal(r.code, 0);
-  assert.deepEqual(readCfg(d), { grunt: { subOrch: true } });
+  assert.deepEqual(readCfg(d), { grunt: { subOrch: false } });
 });
 
 test('--set with an invalid value exits 2 and leaves the file unchanged', () => {
@@ -65,7 +65,7 @@ test('--set unknown key exits 5', () => {
 test('--set on an unreadable file exits 2', () => {
   const d = tempDir();
   writeCfg(d, '{ not json');
-  const r = run(d, ['--set', 'grunt.subOrch=on']);
+  const r = run(d, ['--set', 'grunt.subOrch=off']);
   assert.equal(r.code, 2);
   assert.match(r.err, /config file unreadable; fix it or run --reset/);
   assert.equal(fs.readFileSync(cfgFile(d), 'utf8'), '{ not json');
@@ -83,7 +83,7 @@ test('--reset and --preset overwrite an unreadable file', () => {
 
 test('--reset key removes only that key', () => {
   const d = tempDir();
-  writeCfg(d, { grunt: { subOrch: true, rotateK: 120 }, weekly: { start: 80 } });
+  writeCfg(d, { grunt: { subOrch: false, rotateK: 120 }, weekly: { start: 80 } });
   const r = run(d, ['--reset', 'grunt.subOrch']);
   assert.equal(r.code, 0);
   assert.deepEqual(readCfg(d), { grunt: { rotateK: 120 }, weekly: { start: 80 } });
@@ -92,7 +92,7 @@ test('--reset key removes only that key', () => {
 
 test('--reset writes {}', () => {
   const d = tempDir();
-  writeCfg(d, { grunt: { subOrch: true } });
+  writeCfg(d, { grunt: { subOrch: false } });
   assert.equal(run(d, ['--reset']).code, 0);
   assert.deepEqual(readCfg(d), {});
 });
@@ -103,7 +103,7 @@ test('--show marks file and default sources', () => {
   const r = run(d, ['--show']);
   assert.equal(r.code, 0);
   assert.match(r.out, /^grunt\.rotateK = 120 \(file\)$/m);
-  assert.match(r.out, /^grunt\.subOrch = false \(default\)$/m);
+  assert.match(r.out, /^grunt\.subOrch = true \(default\)$/m);
   assert.match(r.out, /^gate\.fiveHour\.enabled = true \(default\)$/m);
 });
 
@@ -129,10 +129,10 @@ test('--print shows source defaults when no file', () => {
 
 test('--print shows source file when a file exists', () => {
   const d = tempDir();
-  writeCfg(d, { grunt: { subOrch: true } });
+  writeCfg(d, { grunt: { subOrch: false } });
   const r = run(d, ['--print']);
   assert.match(r.out.split('\n')[0], /^NESTOR-CONFIG \(source: file\)$/);
-  assert.match(r.out, /^grunt: controller=true subOrch=true /m);
+  assert.match(r.out, /^grunt: controller=true subOrch=false /m);
 });
 
 test('--print with an invalid value names the key replaced by its default', () => {
@@ -178,7 +178,7 @@ test('no arguments without a terminal is a usage error', () => {
 
 test('config.json is written pretty and no temp file is left', () => {
   const d = tempDir();
-  run(d, ['--set', 'grunt.subOrch=true']);
+  run(d, ['--set', 'grunt.subOrch=false']);
   assert.match(fs.readFileSync(cfgFile(d), 'utf8'), /\n {2}"grunt"/);
   assert.deepEqual(fs.readdirSync(`${d}/nestor`), ['config.json']);
 });

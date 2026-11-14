@@ -103,8 +103,8 @@ are kept by the orchestrators themselves. If the guard itself crashes, the spawn
 to read, it answers `NO-DATA` and the spawn is denied. The reasoning is in [docs/how-it-works.md](docs/how-it-works.md);
 project rules and extra agents are in [docs/add-ons.md](docs/add-ons.md).
 
-The grunt is optional. It is off at the sub-orchestrator level by default, and a brief can switch it off for a run
-with `Grunt: off`. The results so far come from one person's runs, so nothing is claimed about what it does for your
+The grunt is optional. It is on for the controller and each sub-orchestrator by default; `grunt.subOrch=off` in the
+config or `Grunt: off` in a brief switches it off. The results so far come from one person's runs, so nothing is claimed about what it does for your
 usage.
 
 ## Uninstall
