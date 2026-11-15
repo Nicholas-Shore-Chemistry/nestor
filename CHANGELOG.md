@@ -15,8 +15,8 @@
   `TaskStop` gets a `ToolSearch` hint; script forms are quoted like the run skill's grants; `<project>` is defined in
   `core.md`; the headless rule covers a sub-orchestrator's `WAIT`; run skill step 6 places a passed `HANDOFF-TEXT:`;
   a worker's long output goes into its handoff file (#1).
-- Agent descriptions are shorter (about 700 → 380 characters in every session's agent list); `grunt-eval.mjs` says
-  "estimated net saving" (#1).
+- Agent descriptions are shorter (about 700 → 380 characters in every session's agent list); `grunt-eval.mjs` prints
+  `estimated net saving` instead of `weighted net saving` (#1).
 - Docs: headless report-and-stop is the intended behaviour; the limits of the run's grants (`-p` turns, `bg.mjs`,
   untested path forms) and the honour system of the file grants are written down (#1).
 
