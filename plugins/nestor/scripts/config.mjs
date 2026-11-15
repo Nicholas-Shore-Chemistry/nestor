@@ -10,7 +10,8 @@
 //   node config.mjs --show                   every key, its value and where it comes from
 //   node config.mjs --print                  the compact block a run passes to its agents
 //   node config.mjs --print --role <r>       the block for one role: controller, suborch, worker (one line), grunt (none)
-// Exit codes: 0 ok, 2 validation failed (nothing written), 5 usage error.
+// Exit codes: 0 ok, 1 unexpected error (e.g. the file can't be read or written; message on stderr),
+// 2 validation failed (nothing written), 5 usage error.
 // Test only: --interactive forces interactive mode without a terminal.
 import fs from 'node:fs';
 import path from 'node:path';

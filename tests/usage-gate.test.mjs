@@ -66,6 +66,9 @@ test('WP4.4-C3: a passed 5h reset gives NO-DATA needing a reading, stale or fres
     assert.equal(r.reason, 'no reading since the 5h reset');
     assert.equal(r.needs_reading, true);
     assert.match(r.hint, /any model turn/i);
+    // no reading means no number: a passed window must not show as 0%
+    assert.equal(r.five_hour, null);
+    assert.equal('data_fresh' in r || 'data_age_s' in r, false);
   }
 });
 

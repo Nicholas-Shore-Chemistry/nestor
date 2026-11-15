@@ -41,7 +41,8 @@ export function splitTools(s) {
 export function assertNamedScriptsOnly(skillName) {
   const { front } = loadSkill(skillName);
   const tools = splitTools(front['allowed-tools']);
-  const entry = /^Bash\(node "\$\{CLAUDE_PLUGIN_ROOT\}\/scripts\/([\w-]+)\.mjs" \*\)$/;
+  // A rule may pin leading flags (`--print`), never values with spaces or wildcards in them.
+  const entry = /^Bash\(node "\$\{CLAUDE_PLUGIN_ROOT\}\/scripts\/([\w-]+)\.mjs"(?: --[a-z-]+)* \*\)$/;
   const bash = [];
   for (const t of tools) {
     assert.ok(!/^(Bash|PowerShell)$/.test(t), `${skillName}: bare ${t}`);

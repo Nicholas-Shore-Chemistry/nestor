@@ -71,7 +71,7 @@ function readSnapshots(dir) {
 // Usage only rises inside a window, so among snapshots of the newest window take the max.
 // A window whose resets_at has passed has reset, but usage may have been spent since (another
 // session, claude.ai): it is no reading of the current window. It comes back with passed: true
-// and the caller asks for a new reading. data_fresh/data_age_s describe the newest snapshot.
+// and the caller asks for a new reading; its pct is null, since there is no number for it.
 function windowReading(snaps, key, now, freshMs) {
   const rows = snaps
     .map(({ s, t }) => ({
@@ -82,18 +82,7 @@ function windowReading(snaps, key, now, freshMs) {
     .filter((r) => typeof r.pct === 'number' && Number.isFinite(r.pct) && Number.isFinite(r.reset));
   if (!rows.length) return null;
   const newestReset = Math.max(...rows.map((r) => r.reset));
-  if (newestReset <= now) {
-    const newestT = Math.max(...rows.map((r) => r.t));
-    return {
-      pct: 0,
-      reset: null,
-      fresh: false,
-      age_s: null,
-      passed: true,
-      data_fresh: isFresh(newestT, now, freshMs),
-      data_age_s: Math.round((now - newestT) / 1000),
-    };
-  }
+  if (newestReset <= now) return { pct: null, reset: null, fresh: false, age_s: null, passed: true };
   const same = rows.filter((r) => Math.abs(r.reset - newestReset) <= 5 * 60_000);
   const freshRows = same.filter((r) => isFresh(r.t, now, freshMs));
   const pool = freshRows.length ? freshRows : same;
