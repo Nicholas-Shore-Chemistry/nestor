@@ -103,13 +103,16 @@ passed. If the reset passes during the wait, it exits at once with `NO-DATA`: a 
 only the next turn can bring the new reading. Run it in the background, so the waiting costs no turns. The harness
 wakes the controller when the script exits. That wake-up needs the session to stay open, for the same reason as the snapshots.
 
-A headless session doesn't wait. The gate counts a session as headless when `CLAUDE_CODE_ENTRYPOINT` starts with
+A headless session doesn't wait, by design: a `-p` run is started by a script or a scheduler, which can start it
+again after the reset, and a process that waits for hours would hold the caller. This covers a sub-orchestrator's
+`WAIT` too: the controller reports its `CACHE:` line as the resume point and stops. The gate counts a session as headless when `CLAUDE_CODE_ENTRYPOINT` starts with
 `sdk-`: `claude -p` reports `sdk-cli`, and Agent SDK hosts report `sdk-*` too. Every other entrypoint, the
 interactive CLI included, counts as interactive and waits as usual. In a headless session `--wait` prints the verdict
 at once with `headless: true` and `wait_skipped: "headless"`, and the controller writes its resume point, reports the
 verdict and stops. A foreground wait would hang the caller, and a
 headless run writes no snapshots of its own. Set `NESTOR_HEADLESS_WAIT=1` to keep the wait; the gate then prints
-`headless: false`. An interactive host built on the Agent SDK needs this too.
+`headless: false`. An interactive host built on the Agent SDK needs this too: the detection knows only the entrypoint,
+so such a host counts as headless. That is a known limit, not a bug.
 
 ## The 5-hour off switch
 
@@ -162,9 +165,17 @@ other file is pre-approved, `CLAUDE.md` included. The gate writes its own log, `
 
 Everything else needs your own allow rules. NestOr's own steps are single plain commands, its scripts, `git` or
 `sleep <n>`, with no `&&`, pipes, `cd` or `mkdir`. The scripts are already pre-approved by exact path, so you need
-`Bash(sleep:*)` and the git subcommands your briefs use. `Bash(node:*)` is not needed, and it lets an agent run any
-code. The commands a brief asks for (your tests, your build) and edits to project files outside `orchestration/`
-depend on your settings. A headless run (`claude -p`) denies anything that isn't allowed, and the agents stop.
+`Bash(sleep:*)` and the git subcommands your briefs use. `Bash(node:*)` is not needed in an interactive run, and it
+lets an agent run any code. Three limits: the grants hold for the skill's turn and the agents it starts, so a later
+turn of a `-p` run or a resumed agent may be denied (give a `-p` run the script rules with `--allowedTools`); the
+grunt's `bg.mjs` runs any command and is not pre-approved; and the grants are proven on Linux and Windows, while a
+plugin root with a space or a `)` fails safe (a prompt per call) by reasoning, not by test. The commands a brief asks
+for (your tests, your build) and edits to project files outside `orchestration/` depend on your settings. A headless
+run (`claude -p`) denies anything that isn't allowed, and the agents stop.
+
+The file grants are an honour system. Every agent of a run may write `rules.md` and every handoff, not only its own,
+and a grant like `Edit(./orchestration/STATUS.md)` also matches a folder of that name with everything in it, a nested
+`CLAUDE.md` included. The rules tell each agent which files are its own; nothing enforces it.
 
 ## The tick
 

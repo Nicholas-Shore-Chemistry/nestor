@@ -60,8 +60,9 @@ headless run (`claude -p`) doesn't wait: it writes its resume point, reports the
 `NESTOR_HEADLESS_WAIT=1` to make it wait anyway.
 
 NestOr's own steps are single plain commands: its scripts, which the run pre-approves, `git` and `sleep`. The commands
-and edits your brief asks for need your own permission rules. Don't add `Bash(node:*)` for NestOr: it isn't needed and
-lets an agent run any code. See "What the run skill pre-approves" in [docs/how-it-works.md](docs/how-it-works.md).
+and edits your brief asks for need your own permission rules. Don't add `Bash(node:*)` for NestOr: it lets an agent
+run any code, and an interactive run doesn't need it. It does not cover a `-p` run's later turns (below) or a grunt's
+`bg.mjs`, which runs any command and so is never pre-approved. See "What the run skill pre-approves" in [docs/how-it-works.md](docs/how-it-works.md).
 
 Keep an interactive Claude Code session open for the whole run. The statusline only runs there, and without it the gate
 has no fresh data. A headless run (`claude -p`) writes no usage data, so it gets `NO-DATA`. After a window reset the
@@ -69,11 +70,11 @@ gate also answers `NO-DATA` until a model turn in a session brings a new reading
 after a fresh install gets NO-DATA too if no snapshot exists yet. Nobody has to sit at the keyboard, but the session
 has to stay open.
 
-Headless runs (`claude -p`) don't yet behave like an interactive session. The usage gate doesn't wait for a reset:
-the run writes its resume point, reports the verdict and stops. Set `NESTOR_HEADLESS_WAIT=1` to get the wait back. The
-tool permissions the run skill grants also last only for the skill's own turn, so later controller turns in a `-p` run
-may be denied. The handoff then arrives in the reply as `HANDOFF-TEXT:` instead of as a file. A later release will fix
-both.
+Headless runs (`claude -p`) stop instead of waiting, by design: the gate reports the verdict, the run writes its
+resume point and exits, and whatever scheduled it starts it again later. Set `NESTOR_HEADLESS_WAIT=1` to make it wait
+anyway. The tool permissions the run skill grants last only for the skill's own turn, so later controller turns in a
+`-p` run may be denied; give a `-p` run the same script rules through `--allowedTools` or your settings. Without them
+the handoff arrives in the reply as `HANDOFF-TEXT:` instead of as a file, and the controller's context check may fail.
 
 ## Configure
 

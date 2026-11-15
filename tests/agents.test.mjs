@@ -48,7 +48,7 @@ test('frontmatter per agent matches the spec', () => {
   assert.equal(f('worker').model, 'sonnet');
   assert.equal(f('worker').background, 'true');
   assert.equal(f('worker').tools, 'Bash, Read, Edit, Write, Glob, Grep');
-  assert.match(f('worker').description, /MCP tools, web access or skills goes to an ordinary agent type/);
+  assert.match(f('worker').description, /MCP tools, web access or skills go to an ordinary agent type/);
   assert.deepEqual(f('worker').experimental, { cacheTtl: '1h' });
   assert.deepEqual(keys('worker'), ['background', 'description', 'experimental', 'model', 'name', 'tools']);
   assert.equal(f('grunt').name, 'grunt');
@@ -58,6 +58,10 @@ test('frontmatter per agent matches the spec', () => {
   assert.deepEqual(f('grunt').experimental, { cacheTtl: '1h' });
   assert.deepEqual(keys('grunt'), ['background', 'description', 'experimental', 'model', 'name', 'tools']);
   for (const n of Object.keys(A)) assert.ok(f(n).description.length > 20, `${n} description`);
+  // the descriptions sit in every session's agent list, also in sessions that never orchestrate
+  const total = Object.keys(A).reduce((s, n) => s + f(n).description.length, 0);
+  assert.ok(total <= 400, `agent descriptions ${total} chars`);
+  assert.doesNotMatch(f('grunt').description, /cheap/);
 });
 
 test('no ignored plugin-agent fields', () => {

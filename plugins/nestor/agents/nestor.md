@@ -1,6 +1,6 @@
 ---
 name: nestor
-description: NestOr, the sub-orchestrator for one work package in a NestOr run. Spawned by the controller only; dispatches workers and reviewers, waits on them, and returns WP-DONE, ROTATE, WAIT, LIMIT or BLOCKED.
+description: NestOr sub-orchestrator for one work package of a NestOr run. Spawned by the NestOr controller only.
 model: opus
 effort: medium
 tools: Agent, Bash, Read, Edit, Write, Glob, Grep, SendMessage, TaskStop, ToolSearch

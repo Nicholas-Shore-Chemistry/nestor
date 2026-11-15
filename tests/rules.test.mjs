@@ -22,7 +22,8 @@ test('rules name only keys that exist', () => {
 });
 
 test('rules hold no numbers', () => {
-  const ALLOWED = ['15 lines', 'fix round 3', 'fix round 4', '1 h', '5 min', '5h', '7d', 'NESTOR_HEADLESS_WAIT=1'];
+  // `× 60` is a unit conversion (minutes to seconds), not a tunable value
+  const ALLOWED = ['15 lines', 'fix round 3', 'fix round 4', '1 h', '5 min', '5h', '7d', 'NESTOR_HEADLESS_WAIT=1', '× 60'];
   for (const name of RULE_FILES) {
     const stripped = R[name]
       .split('\n')
@@ -58,7 +59,9 @@ test('pending-wait rule present', () => {
 });
 
 test('timer stop, HANDOFF-TEXT reader, grunt reply limit and headless rule present', () => {
-  assert.match(replies, /`sleep` for `gate\.timerMin` minutes/);
+  // seconds stated, so the model does no unit conversion of its own
+  assert.match(replies, /`sleep <s>` with `<s>` = `gate\.timerMin`\s+× 60, in seconds/);
+  assert.match(replies, /`TaskStop` is a deferred tool, load it with `ToolSearch`/);
   assert.match(replies, /`TaskStop` your pending timers\s+before the final report/);
   assert.match(core, /under `HANDOFF-TEXT:` and end with the word the work earned/);
   assert.match(controller, /The controller writes that text to `HANDOFF-<wp>\.md`/);
@@ -87,9 +90,11 @@ test('reply channel, timer purpose and keep-warm rules present', () => {
 });
 
 test('scripts use <root>', () => {
-  for (const s of ['<root>/scripts/usage-gate.mjs', '<root>/scripts/ctx.mjs', '<root>/scripts/tick.mjs', '<root>/scripts/config.mjs --print --role']) {
+  // quoted, the form the run skill's allowed-tools rules match
+  for (const s of ['"<root>/scripts/usage-gate.mjs"', '"<root>/scripts/ctx.mjs"', '"<root>/scripts/tick.mjs"', '"<root>/scripts/config.mjs" --print --role']) {
     assert.ok(all.includes(s), `missing ${s}`);
   }
+  assert.doesNotMatch(all, /node <root>\//, 'an unquoted script form does not match the grant');
   assert.ok(!all.includes('${CLAUDE_PLUGIN_ROOT}'), 'rules must not use ${CLAUDE_PLUGIN_ROOT}');
 });
 
@@ -134,7 +139,7 @@ test('each orchestrator body names exactly the rules files its role reads', () =
 });
 
 test('the timer rule and the command rule live in one place per reader', () => {
-  const TIMER = /`sleep` for `gate\.timerMin` minutes/g;
+  const TIMER = /`sleep <s>` with `<s>` = `gate\.timerMin`/g;
   const COMMAND = /no `&&`, `;`, pipes/g;
   for (const role of Object.keys(READERS))
     for (const withGrunt of [false, true]) {

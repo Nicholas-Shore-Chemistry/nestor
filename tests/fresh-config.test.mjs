@@ -58,7 +58,7 @@ test('the checker catches the forms a fresh config denies', () => {
   const good = [
     'node "${CLAUDE_PLUGIN_ROOT}/scripts/config.mjs" --set <key>=<value>',
     'node <root>/scripts/usage-gate.mjs --path <p> --action <orch|worker|opus> [--wait] --log orchestration/usage-log.jsonl',
-    'git branch --show-current', 'git commit -m "<summary>"', 'sleep <n>', 'claude --version', 'mkdir', '&&', 'npm test',
+    'git branch --show-current', 'git commit -m "<summary>"', "git commit -m '<summary>'", 'sleep <n>', 'claude --version', 'mkdir', '&&', 'npm test',
     'NESTOR-RUN: <project> PATHWAY: <p>',
   ];
   assert.deepEqual(good.filter((s) => badCommand(s)), []);
@@ -103,6 +103,9 @@ test('the command rule reaches the worker rules file and every brief', () => {
   assert.match(wf, /put them into the run's shared rules file[\s\S]*the\s+command rule/);
   assert.match(wf, /command rule into every worker and\s+reviewer brief/);
   assert.match(wf, /heredocs/);
-  assert.match(wf, /git commit -m "<summary>"`, one more `-m "<paragraph>"`\s+per\s+paragraph/);
-  assert.match(wf, /write only your own handoff in `orchestration\/`, never `rules\.md`/);
+  // single quotes: in double quotes a backtick or `$` in the message runs as command substitution
+  assert.match(wf, /git commit -m '<summary>'`, one more `-m '<paragraph>'`\s+per\s+paragraph/);
+  for (const f of [wf, fs.readFileSync(path.join(PLUGIN, 'agents', 'worker.md'), 'utf8')])
+    assert.doesNotMatch(f, /commit -m "/);
+  assert.match(wf, /write only your own handoff in\s+`orchestration\/`, never `rules\.md`/);
 });
