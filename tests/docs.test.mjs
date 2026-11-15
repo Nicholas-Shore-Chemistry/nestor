@@ -149,9 +149,9 @@ test('LICENSE is MIT, Nicholas Shore', () => {
   assert.match(lic, /Copyright \(c\) 2026 Nicholas Shore/);
 });
 
-test('CHANGELOG has 0.2.5 and versions agree with the manifests', () => {
+test('CHANGELOG has 0.2.6 and versions agree with the manifests', () => {
   const m = /^## (\d+\.\d+\.\d+)\s*$/m.exec(read('CHANGELOG.md'));
-  assert.equal(m?.[1], '0.2.5');
+  assert.equal(m?.[1], '0.2.6');
   assert.equal(readJson('.claude-plugin', 'marketplace.json').version, m[1]);
   assert.equal(readJson('plugins', 'nestor', '.claude-plugin', 'plugin.json').version, m[1]);
 });
