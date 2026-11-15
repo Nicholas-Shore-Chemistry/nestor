@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.2.6
 
 - Spawn guard: a `nestor:nestor` spawn counts as `orch` even without `NESTOR-TAG:`, and a spawn without `model`
   counts as `opus` (it inherits the orchestrator's model), except `nestor:worker` and `nestor:grunt`, which bring
