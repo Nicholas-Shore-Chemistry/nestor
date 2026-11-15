@@ -120,7 +120,7 @@ test('length limits', () => {
   for (const f of ['controller.md', 'replies.md', 'grunt-use.md']) assert.ok(lineCount(R[f]) <= 100, f);
 });
 
-// Before the split (B4) every sub-orchestrator and the controller read 30.7k bytes at start-up.
+// Before the rules were split by role, every sub-orchestrator and the controller read 30.7k bytes at start-up.
 const BEFORE = { suborch: 30741, controller: 30805 };
 const startup = (role, withGrunt) => readerTexts(role, withGrunt).reduce((n, [, t]) => n + bytes(t), 0);
 

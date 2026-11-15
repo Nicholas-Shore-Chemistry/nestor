@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { loadSkill, splitTools, assertNamedScriptsOnly } from './skill-helpers.mjs';
+import { READERS } from './readers.mjs';
 
 const run = loadSkill('run');
 
@@ -43,15 +44,30 @@ test('every file grant of every skill is scoped: the rules read, and orchestrati
   assert.ok(splitTools(run.front['allowed-tools']).includes(allowed));
 });
 
-test('every plugin file an agent or skill reads is under rules/ and covered by the run grant', () => {
-  const rulesReads = [...fs.readFileSync(path.join(PLUGIN, 'agents', 'nestor.md'), 'utf8').matchAll(/\$\{CLAUDE_PLUGIN_ROOT\}\/rules\/[\w.-]+/g)];
-  assert.ok(rulesReads.length >= 2);
-  const body = run.body;
-  for (const m of rulesReads) assert.ok(body.includes(m[0]), m[0]);
-  for (const f of ['grunt', 'worker']) {
-    const t = fs.readFileSync(path.join(PLUGIN, 'agents', `${f}.md`), 'utf8');
-    assert.ok(!/Read[^.\n]*\$\{CLAUDE_PLUGIN_ROOT\}\/(?!rules\/)/.test(t), `${f}.md reads outside rules/`);
+// Every plugin path an agent or skill names is either a script it runs or a rules file it reads. A rules file sits
+// directly in rules/, so the run grant `Read(${CLAUDE_PLUGIN_ROOT}/rules/*)` covers it; both kinds must exist.
+test('every plugin path an agent or skill names is an existing script or a rules file the run grant covers', () => {
+  const texts = [
+    ...fs.readdirSync(path.join(PLUGIN, 'agents')).map((f) => [`agents/${f}`, path.join(PLUGIN, 'agents', f)]),
+    ...fs.readdirSync(path.join(PLUGIN, 'skills')).map((n) => [`skills/${n}`, path.join(PLUGIN, 'skills', n, 'SKILL.md')]),
+  ].map(([n, p]) => [n, fs.readFileSync(p, 'utf8')]);
+  let rulesRefs = 0;
+  for (const [n, t] of texts) {
+    for (const m of t.matchAll(/\$\{CLAUDE_PLUGIN_ROOT\}\/([^\s`"')*]+)/g)) {
+      const rel = m[1].replace(/[.,;:]+$/, '');
+      // the pattern a body states for running any of its scripts, and the run skill's own `rules/*` grant
+      if (rel === 'scripts/<name>.mjs' || rel === 'rules/') continue;
+      if (/^rules\/[\w.-]+\.md$/.test(rel)) rulesRefs++;
+      else assert.match(rel, /^scripts\/[\w-]+\.mjs$/, `${n}: ${rel} is neither a script nor a rules file`);
+      assert.ok(fs.existsSync(path.join(PLUGIN, rel)), `${n}: ${rel} does not exist`);
+    }
   }
+  assert.ok(rulesRefs >= 6, `${rulesRefs} rules reads found`);
+});
+
+test('rules/ holds exactly the rules files the readers load, nothing else the grant would open', () => {
+  const named = new Set(Object.values(READERS).flatMap((r) => [...r.always, ...r.grunt]));
+  assert.deepEqual(fs.readdirSync(path.join(PLUGIN, 'rules')).sort(), [...named].sort());
 });
 
 test('run skill gates before the first spawn, the grunt included', () => {
@@ -99,16 +115,41 @@ test('run skill reads its rules files through the root, grunt-use.md only behind
   assert.match(run.body, /orchestration\/rules\.md/);
 });
 
-test('every node command in the run skill matches an allowed-tools rule', () => {
-  const rules = splitTools(run.front['allowed-tools']).map((t) => t.slice('Bash('.length, -' *)'.length) + ' ');
-  const starts = [...run.body.matchAll(/\bnode /g)].map((x) => x.index);
-  assert.ok(starts.length > 0);
-  for (const i of starts) {
-    assert.ok(rules.some((r) => run.body.startsWith(r, i)), run.body.slice(i, i + 80));
+// Every `node` command anywhere in a skill body (inline span, fenced block, or after a prefix such as `cd x && `)
+// must start with one of that skill's Bash rules. Only Bash entries are rules for commands.
+export function unmatchedNodeCommands(body, allowedTools) {
+  const rules = splitTools(allowedTools)
+    .filter((t) => t.startsWith('Bash(') && t.endsWith(' *)'))
+    .map((t) => t.slice('Bash('.length, -' *)'.length) + ' ');
+  const found = [];
+  for (const m of body.matchAll(/\bnode\s/g))
+    if (!rules.some((r) => body.startsWith(r, m.index))) found.push(body.slice(m.index, m.index + 80));
+  return found;
+}
+
+test('every node command in every skill matches one of its Bash rules', () => {
+  for (const n of fs.readdirSync(path.join(PLUGIN, 'skills'))) {
+    const s = loadSkill(n);
+    assert.ok([...s.body.matchAll(/\bnode\s/g)].length > 0, `${n} names no node command`);
+    assert.deepEqual(unmatchedNodeCommands(s.body, s.front['allowed-tools']), [], n);
   }
 });
 
-// ---- Task 5: setup and teardown skills ----
+test('the node command check catches fenced, prefixed and unquoted forms', () => {
+  const tools = 'Bash(node "${CLAUDE_PLUGIN_ROOT}/scripts/tick.mjs" *), Read(${CLAUDE_PLUGIN_ROOT}/rules/*)';
+  const ok = 'Run `node "${CLAUDE_PLUGIN_ROOT}/scripts/tick.mjs" --path slow`.';
+  assert.deepEqual(unmatchedNodeCommands(ok, tools), []);
+  for (const bad of [
+    'Run:\n```\nnode "${CLAUDE_PLUGIN_ROOT}/scripts/config.mjs" --show\n```',
+    'Run `cd x && node "${CLAUDE_PLUGIN_ROOT}/scripts/other.mjs" --go`.',
+    'Run node ${CLAUDE_PLUGIN_ROOT}/scripts/tick.mjs --path slow.',
+    // a Read rule is no command rule, however it is sliced
+    'Run `node ${CLAUDE_PLUGIN_ROOT}/rules/core.md`.',
+  ])
+    assert.equal(unmatchedNodeCommands(bad, tools).length, 1, bad);
+});
+
+// ---- setup and teardown skills ----
 
 import fs from 'node:fs';
 import path from 'node:path';
@@ -166,17 +207,6 @@ test('teardown asks before --purge-config', () => {
   assert.match(asks[1], /NestOr config/);
   assert.match(teardown.body, /\/plugin uninstall nestor@nestor/);
   assert.match(teardown.body, /setup\.mjs" --teardown/);
-});
-
-test('every node command in setup and teardown matches an allowed-tools rule', () => {
-  for (const s of [setup, teardown]) {
-    const rules = splitTools(s.front['allowed-tools'])
-      .filter((t) => t.startsWith('Bash('))
-      .map((t) => t.slice('Bash('.length, -' *)'.length) + ' ');
-    for (const m of s.body.matchAll(/\bnode "/g)) {
-      assert.ok(rules.some((r) => s.body.startsWith(r, m.index)), s.body.slice(m.index, m.index + 80));
-    }
-  }
 });
 
 test('no absolute path in any skill', () => {

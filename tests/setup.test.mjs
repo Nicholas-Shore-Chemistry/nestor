@@ -260,7 +260,7 @@ test('atomic write leaves no temp file behind', () => {
   assert.deepEqual(all.filter((n) => n.includes('tmp')), []);
 });
 
-test('WP4.4-C2: no offer at all while no snapshot exists', () => {
+test('no offer at all while no snapshot exists', () => {
   const d = fixture();
   const j = run(d, ['--check', ...CV]).json;
   assert.equal(j.snapshots.any, false);
@@ -451,7 +451,7 @@ test('a number a rewrite would change refuses with exit 2 and writes nothing', (
   assert.equal(readSettings(d2).s, '12345678901234567890');
 });
 
-test('WP4.3 MINOR: a number that overflows to Infinity refuses with exit 2 and writes nothing', () => {
+test('a number that overflows to Infinity refuses with exit 2 and writes nothing', () => {
   const huge = settingsText().replace('"theme": "dark"', '"theme": "dark", "big": 1e400');
   const d = fixture({ settings: huge });
   const before = hashDir(d);
@@ -468,7 +468,7 @@ test('WP4.3 MINOR: a number that overflows to Infinity refuses with exit 2 and w
   assert.equal(hashDir(d2), before2);
 });
 
-test('WP4.3 NIT 3: check reports settings.rewritable, with the apply message when false', () => {
+test('check reports settings.rewritable, with the apply message when false', () => {
   const ok = run(fixture({ snaps: [both()] }), ['--check', ...CV]);
   assert.deepEqual(ok.json.settings, { rewritable: true });
   const big = settingsText().replace('"theme": "dark"', '"theme": "dark", "big": 12345678901234567890');

@@ -23,7 +23,9 @@ export function commandCandidates(text) {
 }
 
 const SHELL = new Set(
-  'node git sleep claude npm npx gh cat ls grep tail head mkdir date test pwd cd echo rm cp mv find jq sort wc env export set source sh bash pwsh powershell'.split(' '),
+  ('node git sleep claude npm npx gh cat ls grep tail head mkdir date test pwd cd echo rm cp mv find jq sort wc env ' +
+    'export set source sh bash pwsh powershell python python3 pip pip3 curl wget touch chmod sed awk tee xargs ' +
+    'timeout nohup sudo make yarn pnpm bun deno tsc kill pkill ps').split(' '),
 );
 // The project's own test command is named as an example of what the user's rules must allow.
 const NAMED_EXAMPLES = new Set(['npm test']);
@@ -37,6 +39,7 @@ export function badCommand(span) {
   if (/\S\s*(&&|\|\|)\s*\S/.test(span)) return 'chain';
   const s = span.replace(/<[^<>]*>/g, 'X').replace(/\[[^\[\]]*\]/g, '').trim();
   if (/^[A-Za-z_][A-Za-z0-9_]*=\S*\s+\S/.test(s)) return 'env prefix';
+  if (/^\.{1,2}[/\\]\S*\s/.test(s)) return 'path command';
   const m = /^([a-z][\w.-]*)\s/.exec(s);
   if (!m || !SHELL.has(m[1])) return null;
   if (NAMED_EXAMPLES.has(s)) return null;
@@ -53,13 +56,16 @@ test('the checker catches the forms a fresh config denies', () => {
     'node a | jq .', 'node a | sort', 'FOO=1 node x', 'cat f', 'ls d', 'pwd x', 'gh pr view 1', 'npm test | tail',
     'node a; Node b', 'node a;./b', 'node a & node b', '[ -f x ]', 'cd wt && git status', 'git commit -m "$(cat f)"',
     'test -f x', 'git a && git b',
+    // common forms the first checker missed: other tools, wrappers and a script path
+    'python3 x.py', 'curl -s https://x', 'sed -i s/a/b/ f', 'touch f', 'xargs rm', 'timeout 5 node x',
+    'sudo node x', 'make build', 'yarn test', './run.sh arg', 'node x >> log', 'node x 2>/dev/null',
   ];
   assert.deepEqual(bad.filter((s) => !badCommand(s)), []);
   const good = [
     'node "${CLAUDE_PLUGIN_ROOT}/scripts/config.mjs" --set <key>=<value>',
     'node <root>/scripts/usage-gate.mjs --path <p> --action <orch|worker|opus> [--wait] --log orchestration/usage-log.jsonl',
     'git branch --show-current', 'git commit -m "<summary>"', "git commit -m '<summary>'", 'sleep <n>', 'claude --version', 'mkdir', '&&', 'npm test',
-    'NESTOR-RUN: <project> PATHWAY: <p>',
+    'NESTOR-RUN: <project> PATHWAY: <p>', '/nestor:run <brief>', '/plugin uninstall nestor@nestor',
   ];
   assert.deepEqual(good.filter((s) => badCommand(s)), []);
   assert.ok(commandCandidates('a\n```\ncd x && node y\n```\n`git z`').includes('cd x && node y'));

@@ -67,13 +67,15 @@ only old data and answers `NO-DATA`.
 node <root>/scripts/usage-gate.mjs --path <slow|fast> --action <orch|worker|opus> [--wait] [--max-wait-min <n>] [--poll-sec <n>] [--log <file>] [--brief] [--event <e>] [--tag <tag>] [--session-id <id>]
 ```
 
-`--brief` prints one short line instead of the JSON: verdict, `5h`, `7d`, `reset` (UTC, to the minute), `wait` (minutes), `kill`, `now`,
-and `reason` when the verdict is not `GO`. The JSON stays the default; the hook and scripts use it.
+`--brief` prints one short line instead of the JSON: verdict, `5h`, `7d`, `reset` (UTC, to the minute), `wait`
+(minutes), `kill`, `now`, and `reason` when the verdict is not `GO`. The JSON stays the default; the hook and scripts
+use it.
 
 `--action` is `orch` for a new sub-orchestrator or a run start, `opus` for an Opus agent, and `worker` for everything
 else. The script prints one JSON line with `verdict`, `reason`, `hint`, `resets_at`, `wait_min`, `kill_workers`,
-`headless` and `now`, the time of the reading. With `--log` it creates the log's folder if it is missing, so a fresh project needs no
-`mkdir`. It creates one level only: a path with more missing folders gets no log line, and the verdict is unchanged.
+`headless` and `now`, the time of the reading. With `--log` it creates the log's folder if it is missing, so a fresh
+project needs no `mkdir`. It creates one level only: a path with more missing folders gets no log line, and the verdict
+is unchanged.
 
 | Verdict | Exit code | Meaning |
 |---|---|---|
@@ -84,35 +86,35 @@ else. The script prints one JSON line with `verdict`, `reason`, `hint`, `resets_
 | `TIMEOUT` | 3 | `--wait` ran out of time. |
 | `ERROR` | 2 | Bad arguments. Fix the command. |
 
-The 5-hour check starts an orchestrator only below `fiveHour.<path>.orch`, a worker only below
-`fiveHour.<path>.worker`, and an Opus agent only below `fiveHour.<path>.opus`. It stops everything at or above
-`fiveHour.<path>.stop`. The weekly check refuses new starts at `weekly.start` and stops at `weekly.stop`. When the 5-hour
-reading reaches `fiveHour.killWorkers`, `kill_workers` is true, and the rules tell the orchestrator to stop running
-workers and rebuild from git and their report files.
+The 5-hour check starts an orchestrator only below `fiveHour.<path>.orch`, a worker only below `fiveHour.<path>.worker`,
+and an Opus agent only below `fiveHour.<path>.opus`. It stops everything at or above `fiveHour.<path>.stop`. The weekly
+check refuses new starts at `weekly.start` and stops at `weekly.stop`. When the 5-hour reading reaches
+`fiveHour.killWorkers`, `kill_workers` is true, and the rules tell the orchestrator to stop running workers and rebuild
+from git and their report files.
 
-`NO-DATA` denies safely. The gate answers `NO-DATA` when no snapshot holds rate limits, when the newest reading is
-older than `gate.freshMin`, when the 5-hour window is missing, or when the window has passed its reset. A plan without `rate_limits` (an API key, for
-example) never produces a reading, so every tagged spawn would be denied. `hint` says what to switch off in that
-case. A window that has passed its reset is no reading of the current window, because usage may have been spent since, in
-another session or on claude.ai. The gate then answers `NO-DATA` with `needs_reading: true` and the reason `no reading
-since the 5h reset`, however fresh the snapshot is. Any model turn in a session brings a new reading within about a
-minute. A passed weekly reset behaves the same, with the 5-hour check on or off.
+`NO-DATA` denies safely. The gate answers `NO-DATA` when no snapshot holds rate limits, when the newest reading is older
+than `gate.freshMin`, when the 5-hour window is missing, or when the window has passed its reset. A plan without
+`rate_limits` (an API key, for example) never produces a reading, so every tagged spawn would be denied. `hint` says
+what to switch off in that case. A window that has passed its reset is no reading of the current window, because usage
+may have been spent since, in another session or on claude.ai. The gate then answers `NO-DATA` with `needs_reading:
+true` and the reason `no reading since the 5h reset`, however fresh the snapshot is. Any model turn in a session brings
+a new reading within about a minute. A passed weekly reset behaves the same, with the 5-hour check on or off.
 
-With `--wait` the script polls every `gate.pollSec` seconds until the verdict is `GO` or `gate.maxWaitMin` has
-passed. If the reset passes during the wait, it exits at once with `NO-DATA`: a waiting session makes no turns, so
-only the next turn can bring the new reading. Run it in the background, so the waiting costs no turns. The harness
-wakes the controller when the script exits. That wake-up needs the session to stay open, for the same reason as the snapshots.
+With `--wait` the script polls every `gate.pollSec` seconds until the verdict is `GO` or `gate.maxWaitMin` has passed.
+If the reset passes during the wait, it exits at once with `NO-DATA`: a waiting session makes no turns, so only the next
+turn can bring the new reading. Run it in the background, so the waiting costs no turns. The harness wakes the
+controller when the script exits. That wake-up needs the session to stay open, for the same reason as the snapshots.
 
-A headless session doesn't wait, by design: a `-p` run is started by a script or a scheduler, which can start it
-again after the reset, and a process that waits for hours would hold the caller. This covers a sub-orchestrator's
-`WAIT` too: the controller reports its `CACHE:` line as the resume point and stops. The gate counts a session as headless when `CLAUDE_CODE_ENTRYPOINT` starts with
-`sdk-`: `claude -p` reports `sdk-cli`, and Agent SDK hosts report `sdk-*` too. Every other entrypoint, the
-interactive CLI included, counts as interactive and waits as usual. In a headless session `--wait` prints the verdict
-at once with `headless: true` and `wait_skipped: "headless"`, and the controller writes its resume point, reports the
-verdict and stops. A foreground wait would hang the caller, and a
-headless run writes no snapshots of its own. Set `NESTOR_HEADLESS_WAIT=1` to keep the wait; the gate then prints
-`headless: false`. An interactive host built on the Agent SDK needs this too: the detection knows only the entrypoint,
-so such a host counts as headless. That is a known limit, not a bug.
+A headless session doesn't wait, by design: a `-p` run is started by a script or a scheduler, which can start it again
+after the reset, and a process that waits for hours would hold the caller. This covers a sub-orchestrator's `WAIT` too:
+the controller reports its `CACHE:` line as the resume point and stops. The gate counts a session as headless when
+`CLAUDE_CODE_ENTRYPOINT` starts with `sdk-`: `claude -p` reports `sdk-cli`, and Agent SDK hosts report `sdk-*` too.
+Every other entrypoint, the interactive CLI included, counts as interactive and waits as usual. In a headless session
+`--wait` prints the verdict at once with `headless: true` and `wait_skipped: "headless"`, and the controller writes its
+resume point, reports the verdict and stops. A foreground wait would hang the caller, and a headless run writes no
+snapshots of its own. Set `NESTOR_HEADLESS_WAIT=1` to keep the wait; the gate then prints `headless: false`. An
+interactive host built on the Agent SDK needs this too: the detection knows only the entrypoint, so such a host counts
+as headless. That is a known limit, not a bug.
 
 ## The 5-hour off switch
 
@@ -130,12 +132,12 @@ If neither window appears in the snapshots, the gate answers `NO-DATA` and point
 `spawn-guard.mjs` is a hook on every `Agent` and `Task` call. It looks only at spawns whose prompt contains
 `NESTOR-RUN:` or `NESTOR-TAG:`. Anything else passes at once, untouched and unlogged, so normal work is not affected.
 
-For a tagged spawn it reads the pathway from the `PATHWAY:` line (slow if there is none) and picks the action: `orch`
-if the prompt has `NESTOR-TAG:` or the type is `nestor:nestor`; `opus` if the spawn asks for an Opus model, or names
-no model at all (the agent then inherits the orchestrator's Opus), except `nestor:worker` and `nestor:grunt`, which
-bring their own smaller model; otherwise `worker`. A missing tag or model thus gates at the stricter limit. It runs the gate. Any
-verdict but `GO` becomes a denial with the reason and hint attached. A denial is final: the rules forbid stripping the
-tag or finding another way to spawn.
+For a tagged spawn it reads the pathway from the `PATHWAY:` line (slow if there is none) and picks the action: `orch` if
+the prompt has `NESTOR-TAG:` or the type is `nestor:nestor`; `opus` if the spawn asks for an Opus model, or names no
+model at all (the agent then inherits the orchestrator's Opus), except `nestor:worker` and `nestor:grunt`, which bring
+their own smaller model; otherwise `worker`. A missing tag or model thus gates at the stricter limit. It runs the gate.
+Any verdict but `GO` becomes a denial with the reason and hint attached. A denial is final: the rules forbid stripping
+the tag or finding another way to spawn.
 
 Two limits to know:
 
@@ -151,13 +153,13 @@ verdict, the first lines of the prompt). It is off by default. The guard creates
 
 ## What the run skill pre-approves
 
-`/nestor:run` pre-approves five scripts, `config.mjs --print` (reading only: every agent of the run inherits the
-grants, so none may change the config without a prompt), `usage-gate.mjs`, `ctx.mjs`, `tick.mjs` and `wait.mjs` (the grunt's wait), each by its exact path, and a
-read of `${CLAUDE_PLUGIN_ROOT}/rules/*`, the plugin's own rules files and nothing else. The read grant is what lets the
-controller and the NestOr agent open their rules files without a prompt on a fresh install. Claude Code applies
-a skill's `allowed-tools` to the agents the skill spawns, so one entry covers both. The grants hold in the skill's own
-turn and for agents started in it while they keep running; a later controller turn or a resumed agent may be denied. There is no bare `Read`, no bare
-`Bash` and no wildcard that leaves the plugin folder.
+`/nestor:run` pre-approves five scripts, `config.mjs --print` (reading only: every agent of the run inherits the grants,
+so none may change the config without a prompt), `usage-gate.mjs`, `ctx.mjs`, `tick.mjs` and `wait.mjs` (the grunt's
+wait), each by its exact path, and a read of `${CLAUDE_PLUGIN_ROOT}/rules/*`, the plugin's own rules files and nothing
+else. The read grant is what lets the controller and the NestOr agent open their rules files without a prompt on a fresh
+install. Claude Code applies a skill's `allowed-tools` to the agents the skill spawns, so one entry covers both. The
+grants hold in the skill's own turn and for agents started in it while they keep running; a later controller turn or a
+resumed agent may be denied. There is no bare `Read`, no bare `Bash` and no wildcard that leaves the plugin folder.
 
 It also allows `Edit` and `Write` on three names in `./orchestration/`, inside the folder where the run starts:
 `HANDOFF-*.md`, `STATUS.md` and `rules.md`. Those hold the handoffs, the status file and the run's shared rules. No
@@ -195,8 +197,9 @@ transcript found), the line says `ctx=?`; the verdict and the exit code do not c
 `--session-id`.
 
 Before a spawn no extra gate call is needed while the latest tick is `GO`, younger than `gate.freshMin` and nothing was
-dispatched since: the spawn guard hook gates the spawn anyway. The check before a `RESUME` by `SendMessage` is still made,
-because the hook does not see that message. A sub-orchestrator's `CACHE:` line takes `now` and `reset` from its last tick.
+dispatched since: the spawn guard hook gates the spawn anyway. The check before a `RESUME` by `SendMessage` is still
+made, because the hook does not see that message. A sub-orchestrator's `CACHE:` line takes `now` and `reset` from its
+last tick.
 
 ### The usage log and `calibrate.mjs`
 
@@ -230,8 +233,8 @@ yet: it is the measurement a later dynamic gate will build on.
 
 ## Context caps
 
-Every agent's context is re-read on every turn, so the caps keep it short. The tick carries the reading; `ctx.mjs` alone is for a caller with no gate (the grunt). It reports an agent's context size
-by running ctx-meter's `ctx-check`:
+Every agent's context is re-read on every turn, so the caps keep it short. The tick carries the reading; `ctx.mjs` alone
+is for a caller with no gate (the grunt). It reports an agent's context size by running ctx-meter's `ctx-check`:
 
 ```
 node <root>/scripts/ctx.mjs --tag "<tag>"
@@ -281,10 +284,10 @@ write 1.25 to 2 times as much.
 - **Keep-warm.** The reset lies after `warm-until`, `cache.keepWarm` is on and the wait is at most
   `cache.keepWarmMaxMin`. The controller waits in chunks of `cache.warmWindowMin` and after each sends `KEEPWARM <n>`,
   which the sub-orchestrator answers with `OK` and nothing else. Each such turn costs about a tenth of its context and
-  renews the 1-hour cache, so a three-hour wait costs the sub-orchestrator about 0.3 of its context against 1.25 or
-  more for a restart; the controller adds two small turns of its own per chunk. The turn runs above
-  the stop line by design, so the rules allow it only while 5-hour usage is at least five points below
-  `fiveHour.killWorkers` and never on a weekly stop; `SendMessage` passes the spawn guard, so nothing else enforces this.
+  renews the 1-hour cache, so a three-hour wait costs the sub-orchestrator about 0.3 of its context against 1.25 or more
+  for a restart; the controller adds two small turns of its own per chunk. The turn runs above the stop line by design,
+  so the rules allow it only while 5-hour usage is at least five points below `fiveHour.killWorkers` and never on a
+  weekly stop; `SendMessage` passes the spawn guard, so nothing else enforces this.
 - **Cold restart.** Anything else (keep-warm off, a longer wait, `warm-until=none`, a failed limit, or a headless
   run). A fresh sub-orchestrator writes its whole start-up block at the write rate and re-reads brief, handoff and
   repository, so it costs well over its context size; it is still right when the wait is long or the old context is
@@ -365,15 +368,14 @@ figures are estimates written by the agent that kept the log, and the script onl
 ## Why contexts are kept short
 
 A model call re-reads the whole context, so what a run uses is roughly the number of turns times the context size at
-each turn. A context that grows with every turn makes each later turn dearer, so a task that runs twice as long costs well
-over twice as much. A new agent has its own cost as well: it starts with a fixed block of rules, brief
-and tool list before it has done anything.
+each turn. A context that grows with every turn makes each later turn dearer, so a task that runs twice as long costs
+well over twice as much. A new agent has its own cost as well: it starts with a fixed block of rules, brief and tool
+list before it has done anything.
 
 Work is therefore cut into tasks small enough that no agent's context gets big. An agent that has grown is replaced
-instead of kept going, because a fresh agent re-reads only its start-up block each turn, while the old one re-reads everything
-it has grown to. That only
-works if nothing important lives in the chat history, so agents hand over through files: the brief, a handoff, a status
-file.
+instead of kept going, because a fresh agent re-reads only its start-up block each turn, while the old one re-reads
+everything it has grown to. That only works if nothing important lives in the chat history, so agents hand over through
+files: the brief, a handoff, a status file.
 
 The same reasoning prefers `/clear` to `/compact`. Compaction has to read the entire conversation to summarise it, and
 clearing costs nothing. When you need continuity, write the resume point down first, then clear.
@@ -405,13 +407,13 @@ node <root>/scripts/config.mjs --print              # every key, as one compact 
 node <root>/scripts/config.mjs --print --role <r>   # the block for controller, suborch or worker; grunt gets none
 ```
 
-The script checks before it writes, and writes nothing if a check fails (exit code 2). Percentages must be whole
-numbers from 1 to 100, other numbers whole and at least 1. Per pathway, the `orch`, `worker` and `opus` start lines
-must be below `stop`, and `stop` below `fiveHour.killWorkers`. `weekly.start` must be below `weekly.stop`, and
+The script checks before it writes, and writes nothing if a check fails (exit code 2). Percentages must be whole numbers
+from 1 to 100, other numbers whole and at least 1. Per pathway, the `orch`, `worker` and `opus` start lines must be
+below `stop`, and `stop` below `fiveHour.killWorkers`. `weekly.start` must be below `weekly.stop`, and
 `context.subOrchSoftK` below `context.subOrchHardK`, `grunt.coldCtxK` below `grunt.rotateK`, and `gate.timerMin` below
-60, so the timer fires inside the 1-hour cache. It warns, without refusing, when `agents.subOrchs` or an `agents.<path>.opus` value is above 1, when
-`gate.timerMin` is above `cache.warmWindowMin`, and when `cache.keepWarm` is on with `cache.keepWarmMaxMin` at or below
-`cache.warmWindowMin` (keep-warm would never apply).
+60, so the timer fires inside the 1-hour cache. It warns, without refusing, when `agents.subOrchs` or an
+`agents.<path>.opus` value is above 1, when `gate.timerMin` is above `cache.warmWindowMin`, and when `cache.keepWarm` is
+on with `cache.keepWarmMaxMin` at or below `cache.warmWindowMin` (keep-warm would never apply).
 
 If a file on disk is unreadable or breaks these checks anyway, NestOr never opens the gate because of it. Each bad key
 falls back to its default, and the gate's reason says so.

@@ -99,6 +99,32 @@ test('every script named in docs exists', () => {
   assert.ok(n > 0);
 });
 
+// Prose lines that run past the 120-column wrap; tables and fenced code may run longer.
+export function longProseLines(md, limit = 120) {
+  const found = [];
+  let fence = false;
+  md.split('\n').forEach((l, i) => {
+    if (l.trimStart().startsWith('```')) fence = !fence;
+    else if (!fence && !l.trimStart().startsWith('|') && [...l].length > limit) found.push(i + 1);
+  });
+  return found;
+}
+
+test('prose in the README, CHANGELOG and docs keeps the 120-column wrap', () => {
+  for (const f of DOC_FILES) assert.deepEqual(longProseLines(text(f)), [], f);
+});
+
+test('the wrap check counts characters, skips tables and code, and catches long prose', () => {
+  assert.deepEqual(longProseLines(`${'§'.repeat(120)}\n| ${'x'.repeat(130)} |\n\`\`\`\n${'y'.repeat(130)}\n\`\`\``), []);
+  assert.deepEqual(longProseLines(`ok\n${'z '.repeat(61)}`), [2]);
+});
+
+test('the ## headings in docs/how-it-works.md are unique', () => {
+  const heads = text('docs/how-it-works.md').split('\n').filter((l) => l.startsWith('## '));
+  assert.ok(heads.length > 5);
+  assert.deepEqual(heads.filter((h, i) => heads.indexOf(h) !== i), []);
+});
+
 test('no grunt savings claim', () => {
   for (const f of DOC_FILES) assert.deepEqual(gruntSavingsClaims(text(f)), [], f);
 });

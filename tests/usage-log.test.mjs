@@ -1,4 +1,4 @@
-// B5-A2: gate and tick log lines carry tag, session and event; stdout and verdicts stay unchanged.
+// Gate and tick log lines carry tag, session and event; stdout and verdicts stay unchanged.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';

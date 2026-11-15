@@ -1,4 +1,4 @@
-// B5-A3: calibrate.mjs on a fixture log and fixture transcripts reproduces hand-computed numbers.
+// calibrate.mjs on a fixture log and fixture transcripts reproduces hand-computed numbers.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
