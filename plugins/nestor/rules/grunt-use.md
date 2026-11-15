@@ -44,7 +44,7 @@ interim notes back to the grunt (at most twice per task), so they never reach yo
   counts once; a second copy of the same `TASK <id>` report is ignored.
 - A "completed" notification from a background grunt is its idle state, not its end. The next `SendMessage` to its
   agent id resumes the same agent with its history.
-- Its report is facts only, with its context from `node <root>/scripts/ctx.mjs` (a grunt has no gate). On `FAILED`
+- Its report is facts only, with its context from `node "<root>/scripts/ctx.mjs"` (a grunt has no gate). On `FAILED`
   or `BOUNCED` you decide: fix it yourself, send a worker, or give the grunt sharper steps. Never let it retry blind.
 
 ## 5. Lifecycle

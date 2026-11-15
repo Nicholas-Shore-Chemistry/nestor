@@ -26,8 +26,8 @@ in briefs and skills that load only when needed.
   (`<project>/orchestration/rules.md`): the stop with handoff, replies at most 15 lines, filtered test output and the
   command rule; put the command rule into every worker and reviewer brief as well. The command rule: each
   command a single plain `node`, `git` or `sleep <n>` command, with no `&&`, `;`, pipes, heredocs, `$(...)`,
-  redirections, `cd` or `VAR=value` prefixes; commit with `git commit -m "<summary>"`, one more `-m "<paragraph>"` per
-  paragraph; write only your own handoff in `orchestration/`, never `rules.md`.
+  redirections, `cd` or `VAR=value` prefixes; commit with `git commit -m '<summary>'`, one more `-m '<paragraph>'` per
+  paragraph, no `'` inside; write only your own handoff in `orchestration/`, never `rules.md`.
 - **Verify with scripts first**: tests, linter and type check through Bash, verbose output filtered to failures (a
   dot reporter, the runner's own filter flags, or a file read in part; a pipe into `grep` or `tail` needs its own
   allow rule). Read only the part of a file or log you need. A browser only for what only a browser shows, text

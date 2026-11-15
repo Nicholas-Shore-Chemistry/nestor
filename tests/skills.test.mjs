@@ -76,7 +76,7 @@ test('run skill checks its own context with tick.mjs', () => {
 test('run skill prints one config block per role and gates with --action orch', () => {
   for (const r of ['controller', 'suborch', 'worker'])
     assert.match(run.body, new RegExp(`node "\\$\\{CLAUDE_PLUGIN_ROOT\\}/scripts/config\\.mjs" --print --role ${r}\``), r);
-  assert.match(run.body, /the `suborch` block, the `worker` line, and the brief path/);
+  assert.match(run.body, /the `suborch` block, the `worker` line, the brief path, and last, when `controller\.md` §4 says so, the passed handoff under `HANDOFF-TEXT:`/);
   assert.match(run.body, /node "\$\{CLAUDE_PLUGIN_ROOT\}\/scripts\/usage-gate\.mjs" .*--action orch/);
   assert.match(run.body, /\$ARGUMENTS/);
 });

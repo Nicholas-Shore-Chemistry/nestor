@@ -1,6 +1,6 @@
 ---
 name: grunt
-description: NestOr-grunt, a cheap long-lived Haiku helper inside a NestOr run. Spawned once by the controller or a sub-orchestrator and kept idle in the background; takes mechanical tasks by SendMessage and reports facts back. No judgment calls.
+description: NestOr-grunt, a long-lived Haiku helper for mechanical tasks in a NestOr run. Spawned by a NestOr orchestrator only.
 model: haiku
 background: true
 tools: Bash, PowerShell, Read, Edit, Write, Glob, Grep, ToolSearch

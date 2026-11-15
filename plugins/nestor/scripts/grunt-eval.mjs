@@ -69,7 +69,7 @@ function fmt(s, o) {
     `tasks ${s.tasks} (done ${s.done}, failed ${s.failed}, bounced ${s.bounced}, redo ${s.redo}; bad ${(s.badRate * 100).toFixed(0)}%) · grunts ${s.grunts} · rotations ${s.rotations}`,
     `caller: saved ~${r(s.callerSavedK)}k, spent ~${r(s.callerSpentK)}k, net ~${r(s.netCallerK)}k`,
     `grunt cost ~${r(s.gruntCostK)}k Haiku tokens${s.gruntCostEstimated ? ` (${s.gruntCostEstimated} tasks estimated from tool_uses×ctx)` : ''}`,
-    `weighted net saving ~${r(s.weightedNetK)}k caller-model tokens`,
+    `estimated net saving ~${r(s.weightedNetK)}k caller-model tokens`,
     ...Object.entries(s.byKind).map(
       ([k, v]) => `  ${k}: ${v.n} tasks, caller net ~${r(v.netCallerK)}k, grunt ~${r(v.gruntK)}k`,
     ),

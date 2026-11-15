@@ -1,8 +1,9 @@
 # NestOr core rules
 
 These rules bind every level of a NestOr run and every brief that spawns agents. `<root>` is the plugin root; the skill
-or agent body that loads these rules names it. A project may add rules in `<project>/orchestration/rules.md`, but may
-not weaken or restate §2 to §4 or `controller.md` §2 and §3 (link to them); on conflict NestOr's rules files win.
+or agent body that loads these rules names it. `<project>`: the run's start folder (in a head line, its name).
+A project may add rules in `<project>/orchestration/rules.md`, but may not weaken or restate §2 to §4 or
+`controller.md` §2 and §3 (link to them); on conflict NestOr's rules files win.
 
 ## 1. Levels and agent types
 | Level | Spawn as | Count | Cache |
@@ -15,7 +16,7 @@ not weaken or restate §2 to §4 or `controller.md` §2 and §3 (link to them); 
 
 **Config.** A sub-orchestrator's prompt carries its config block right under the head lines and the worker line
 `NESTOR-CONFIG worker.stopTurns=<n>` under the block. Every worker and reviewer prompt carries that one line right
-under its head lines; a grunt prompt carries no config. Values come from the config; these rules only name the keys.
+under its head lines; a grunt prompt carries no config.
 
 ## 2. Pathways
 The brief states `Pathway: slow` or `Pathway: fast`. **The default is slow**: in unattended and overnight runs, time is
@@ -41,7 +42,7 @@ arguments (fix the command, never treat it as `GO`). The exit code is zero only 
 `needs_reading`: the window has reset and no reading of the new one exists yet; any model turn brings one within about
 a minute. `--action`: `orch` for a new sub-orchestrator or a run start, `opus` for an Opus agent, `worker` for the rest.
 - **The tick.** After every worker report and every merge, one call gives verdict and context:
-  `node <root>/scripts/tick.mjs --path <slow|fast> --action <orch|worker|opus> --tag "<tag>" --event <e> --log orchestration/usage-log.jsonl`
+  `node "<root>/scripts/tick.mjs" --path <slow|fast> --action <orch|worker|opus> --tag "<tag>" --event <e> --log orchestration/usage-log.jsonl`
   (the controller: `--session-id "<its session id>"` for `--tag`). `<e>` names the occasion: `report:<agent type>`, `merge`,
   `spawn:<agent type>`, `resume`, `wait` (before a `WAIT` reply), else `tick`. One line, the gate's exit codes: `GO 5h=<n>
   7d=<n> reset=<ISO> wait=<min> ctx=<n>k turns=<n> kill=<flag> now=<ISO>`. Non-`GO` adds `reason="..."`, `NO-DATA` the flag
@@ -53,7 +54,7 @@ a minute. `--action`: `orch` for a new sub-orchestrator or a run start, `opus` f
   safe. A denial is final: never strip the line or reach the spawn another way.
 
 ## 4. Automatic wait
-The controller's part: `controller.md` §2.
+The controller's part: `controller.md` §2. Workers don't check usage.
 
 **Sub-orchestrator**
 - Tick before each dispatch (`--action worker` or `--action opus`), unless §3 lets you skip it.
@@ -61,12 +62,10 @@ The controller's part: `controller.md` §2.
 - `NO-START` with nothing running, or `STOP`: let running workers finish (don't stop them), finish the current atomic
   step, record what merged, write the handoff, and return `WAIT` with the `CACHE:` line (§4.1).
 - A short wait in place only when the gate's `wait_min` is at most `gate.shortWaitMin`: a foreground
-  `node <root>/scripts/usage-gate.mjs --path <slow|fast> --action worker --wait --event wait --log orchestration/usage-log.jsonl`
+  `node "<root>/scripts/usage-gate.mjs" --path <slow|fast> --action worker --wait --event wait --log orchestration/usage-log.jsonl`
   with `--max-wait-min` set to `gate.shortWaitChunkMin` (Bash timeout above that), at most `gate.shortWaitTries` times.
 - On `RESUME`: tick again (`--action worker`), re-read only the handoff and the git log since it, then go on; not the
   brief. On `KEEPWARM <n>`: reply with the single word `OK`, no tool call, no tick, nothing else.
-
-**Workers** don't check usage.
 
 ### 4.1 Cache window
 - A `WAIT` reply ends with this line, then the word:

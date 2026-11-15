@@ -3,7 +3,7 @@
 Read by the controller only, with `core.md`, `replies.md` and `workflow.md`. A bare § number means this file.
 
 ## 1. Run start, sessions and pauses
-- **Config.** Run `node <root>/scripts/config.mjs --print --role <role>` once each, for `controller` (your own values),
+- **Config.** Run `node "<root>/scripts/config.mjs" --print --role <role>` once each, for `controller` (your own values),
   `suborch` and `worker`. Each sub-orchestrator prompt carries the `suborch` block with the `worker` line right under
   it (`core.md` §1). Take every number from these blocks.
 - Never set `subagentPromptCacheTtl` or `CLAUDE_CODE_SUBAGENT_PROMPT_CACHE_TTL`: either one outranks the agent's own
@@ -23,7 +23,7 @@ Read by the controller only, with `core.md`, `replies.md` and `workflow.md`. A b
 ## 2. Automatic wait
 The user can start a run at any time. If the gate says no, the run waits for the window to reset, then starts itself.
 The gate reads the plan limits from the statusline snapshots, which refresh without model turns:
-`node <root>/scripts/usage-gate.mjs --path <p> --action <orch|worker|opus> [--wait] [--max-wait-min <n>] --event <e> --log orchestration/usage-log.jsonl`
+`node "<root>/scripts/usage-gate.mjs" --path <p> --action <orch|worker|opus> [--wait] [--max-wait-min <n>] --event <e> --log orchestration/usage-log.jsonl`
 (`<e>` as for the tick, `core.md` §3: `wait` with `--wait`, `spawn:<agent type>` at the run start.)
 It prints one JSON line with `verdict`, `reason`, `hint`, `resets_at`, `wait_min`, `kill_workers`, `headless` and `now`; with `--brief`
 it prints the one-line form instead (`core.md` §3).
@@ -37,7 +37,8 @@ it prints the one-line form instead (`core.md` §3).
   harness wakes you when it exits: no `/loop`, scheduled wake-ups or polling turns. `GO`: spawn. `TIMEOUT`: `BLOCKED`, tell the user.
   After a reset `--wait` ends with `NO-DATA`: run `--wait` once more with a short `--max-wait-min` for the new reading, then spawn on `GO`.
 - **Headless**, instead of the above (the gate prints `headless: true`): don't wait. Not `GO`: write the resume point
-  into the status file (if denied, into the report), report the verdict, `reason` and `resets_at`, and stop.
+  into the status file (if denied, into the report), report the verdict, `reason` and `resets_at`, and stop. The same
+  for a sub-orchestrator's `WAIT`: no resume wait; report its `CACHE:` line as the resume point and stop.
   `--wait` there returns at once (`wait_skipped`). With `NESTOR_HEADLESS_WAIT=1` set, the gate prints `headless: false`.
 - Until every sub-orchestrator has returned a return word (`core.md` §6), end no turn with nothing pending; after any
   other notification, keep the pending timer, or start one if none is pending (`replies.md`). Relay a grunt reply only

@@ -9,7 +9,16 @@
   unused `data_fresh` and `data_age_s` fields are gone (#1).
 - `/nestor:run` pre-approves `config.mjs --print` only, not every `config.mjs` call: the grants pass to every agent of
   the run, so any of them could turn the gate off without a prompt (#1).
-- `config.mjs` documents exit code 1 (unexpected error) (#1).
+- `config.mjs` documents exit code 1 (unexpected error), and `/nestor:config` says what to do on it (#1).
+- Rules: commits use single quotes (`git commit -m '<summary>'`), so a backtick or `$` in a message is no command
+  substitution; the timer is `sleep <s>` with `<s>` = `gate.timerMin` × 60, not a conversion left to the model;
+  `TaskStop` gets a `ToolSearch` hint; script forms are quoted like the run skill's grants; `<project>` is defined in
+  `core.md`; the headless rule covers a sub-orchestrator's `WAIT`; run skill step 6 places a passed `HANDOFF-TEXT:`;
+  a worker's long output goes into its handoff file (#1).
+- Agent descriptions are shorter (about 700 → 380 characters in every session's agent list); `grunt-eval.mjs` says
+  "estimated net saving" (#1).
+- Docs: headless report-and-stop is the intended behaviour; the limits of the run's grants (`-p` turns, `bg.mjs`,
+  untested path forms) and the honour system of the file grants are written down (#1).
 
 ## 0.2.5
 
