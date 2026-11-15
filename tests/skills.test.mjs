@@ -13,7 +13,8 @@ test('run skill is user-only', () => {
 test('run skill pre-approves only named scripts', () => {
   const bash = assertNamedScriptsOnly('run');
   assert.deepEqual(splitTools(run.front['allowed-tools']), [
-    'Bash(node "${CLAUDE_PLUGIN_ROOT}/scripts/config.mjs" *)',
+    // --print only: every agent of a run inherits the grants, and --set could turn the gate off
+    'Bash(node "${CLAUDE_PLUGIN_ROOT}/scripts/config.mjs" --print *)',
     'Bash(node "${CLAUDE_PLUGIN_ROOT}/scripts/usage-gate.mjs" *)',
     'Bash(node "${CLAUDE_PLUGIN_ROOT}/scripts/ctx.mjs" *)',
     'Bash(node "${CLAUDE_PLUGIN_ROOT}/scripts/tick.mjs" *)',

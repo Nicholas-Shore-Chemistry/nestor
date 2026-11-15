@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased
+
+- Spawn guard: a `nestor:nestor` spawn counts as `orch` even without `NESTOR-TAG:`, and a spawn without `model`
+  counts as `opus` (it inherits the orchestrator's model), except `nestor:worker` and `nestor:grunt`, which bring
+  their own. A forgotten tag or model now gates at the stricter limit, not the looser `worker` one (#1).
+- Usage gate: a window past its reset reports `five_hour`/`seven_day` as `null`, not `0`, next to `NO-DATA`; the
+  unused `data_fresh` and `data_age_s` fields are gone (#1).
+- `/nestor:run` pre-approves `config.mjs --print` only, not every `config.mjs` call: the grants pass to every agent of
+  the run, so any of them could turn the gate off without a prompt (#1).
+- `config.mjs` documents exit code 1 (unexpected error) (#1).
+
 ## 0.2.5
 
 - Grunt: a `sleep` named in a task runs again. The rule "Never use `sleep`" (meant for the grunt's own waits) made

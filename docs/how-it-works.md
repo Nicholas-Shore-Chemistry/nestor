@@ -128,7 +128,9 @@ If neither window appears in the snapshots, the gate answers `NO-DATA` and point
 `NESTOR-RUN:` or `NESTOR-TAG:`. Anything else passes at once, untouched and unlogged, so normal work is not affected.
 
 For a tagged spawn it reads the pathway from the `PATHWAY:` line (slow if there is none) and picks the action: `orch`
-if the prompt has `NESTOR-TAG:`, `opus` if the spawn asks for an Opus model, otherwise `worker`. It runs the gate. Any
+if the prompt has `NESTOR-TAG:` or the type is `nestor:nestor`; `opus` if the spawn asks for an Opus model, or names
+no model at all (the agent then inherits the orchestrator's Opus), except `nestor:worker` and `nestor:grunt`, which
+bring their own smaller model; otherwise `worker`. A missing tag or model thus gates at the stricter limit. It runs the gate. Any
 verdict but `GO` becomes a denial with the reason and hint attached. A denial is final: the rules forbid stripping the
 tag or finding another way to spawn.
 
@@ -146,7 +148,8 @@ verdict, the first lines of the prompt). It is off by default. The guard creates
 
 ## What the run skill pre-approves
 
-`/nestor:run` pre-approves five scripts, `config.mjs`, `usage-gate.mjs`, `ctx.mjs`, `tick.mjs` and `wait.mjs` (the grunt's wait), each by its exact path, and a
+`/nestor:run` pre-approves five scripts, `config.mjs --print` (reading only: every agent of the run inherits the
+grants, so none may change the config without a prompt), `usage-gate.mjs`, `ctx.mjs`, `tick.mjs` and `wait.mjs` (the grunt's wait), each by its exact path, and a
 read of `${CLAUDE_PLUGIN_ROOT}/rules/*`, the plugin's own rules files and nothing else. The read grant is what lets the
 controller and the NestOr agent open their rules files without a prompt on a fresh install. Claude Code applies
 a skill's `allowed-tools` to the agents the skill spawns, so one entry covers both. The grants hold in the skill's own

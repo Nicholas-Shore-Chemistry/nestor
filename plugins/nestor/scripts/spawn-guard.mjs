@@ -42,14 +42,27 @@ export function denyReason(res, pathway, action) {
   );
 }
 
+// NestOr agent types whose own model is below Opus: without a `model` they keep it.
+const OWN_MODEL_WORKER = new Set(['nestor:worker', 'nestor:grunt']);
+
+// Gate action of a tagged spawn. A sub-orchestrator is `orch` by its tag or by its type. A spawn
+// without `model` inherits the orchestrator's model (Opus), so it counts as `opus`, unless its
+// NestOr agent type sets a smaller model of its own.
+export function spawnAction(prompt, ti = {}) {
+  const type = String(ti.subagent_type ?? '').toLowerCase();
+  if (/NESTOR-TAG:/.test(prompt) || type === 'nestor:nestor') return 'orch';
+  const model = String(ti.model ?? '').trim().toLowerCase();
+  if (model) return model.includes('opus') ? 'opus' : 'worker';
+  return OWN_MODEL_WORKER.has(type) ? 'worker' : 'opus';
+}
+
 async function main(raw) {
   const input = JSON.parse(raw || '{}');
   const ti = input?.tool_input ?? {};
   const prompt = typeof ti.prompt === 'string' ? ti.prompt : '';
   if (!TAG.test(prompt)) return;
   const pathway = (prompt.match(/PATHWAY:\s*(fast|slow)/i)?.[1] ?? 'slow').toLowerCase();
-  const model = String(ti.model ?? '').toLowerCase();
-  const action = /NESTOR-TAG:/.test(prompt) ? 'orch' : model.includes('opus') ? 'opus' : 'worker';
+  const action = spawnAction(prompt, ti);
   const { evaluateWithConfig } = await import('./usage-gate.mjs');
   const res = evaluateWithConfig({ pathway, action, env: process.env });
   audit(input, action, res, prompt);

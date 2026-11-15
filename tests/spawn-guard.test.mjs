@@ -60,7 +60,13 @@ test('NESTOR-RUN worker denied on NO-DATA with the ctx-meter hint', () => {
 test('NESTOR-TAG counts as orch', () => {
   const base = cfgDir([{ five: 55 }]); // slow: orch 50, worker 65
   assert.match(denyReason(guard(base, { prompt: 'NESTOR-RUN: demo\nNESTOR-TAG: so1-ab12\nrun WP1' })), /action orch/);
-  assert.equal(guard(base, { prompt: run() }).out, '');
+  assert.equal(guard(base, { prompt: run(), model: 'sonnet' }).out, '');
+});
+
+test('a nestor:nestor spawn counts as orch even without NESTOR-TAG', () => {
+  const base = cfgDir([{ five: 55 }]); // slow: orch 50, worker 65
+  const r = guard(base, { prompt: run(), subagent_type: 'nestor:nestor', model: 'sonnet' });
+  assert.match(denyReason(r), /action orch/);
 });
 
 test('opus model counts as opus', () => {
@@ -69,10 +75,22 @@ test('opus model counts as opus', () => {
   assert.equal(guard(base, { prompt: run(), model: 'sonnet' }).out, '');
 });
 
+test('a spawn without model counts as opus: it inherits the orchestrator model', () => {
+  const base = cfgDir([{ five: 58 }]); // slow: opus 55, worker 65
+  assert.match(denyReason(guard(base, { prompt: run() })), /action opus/);
+  assert.match(denyReason(guard(base, { prompt: run(), subagent_type: 'general-purpose' })), /action opus/);
+});
+
+test('nestor:worker and nestor:grunt without model use their own model and count as worker', () => {
+  const base = cfgDir([{ five: 58 }]); // slow: opus 55, worker 65
+  for (const t of ['nestor:worker', 'nestor:grunt'])
+    assert.equal(guard(base, { prompt: run(), subagent_type: t }).out, '', t);
+});
+
 test('fast pathway parsed', () => {
   const base = cfgDir([{ five: 60 }]); // fast worker 55, slow worker 65
-  assert.match(denyReason(guard(base, { prompt: run('FAST') })), /pathway fast, action worker/);
-  assert.equal(guard(base, { prompt: run('slow') }).out, '');
+  assert.match(denyReason(guard(base, { prompt: run('FAST'), model: 'sonnet' })), /pathway fast, action worker/);
+  assert.equal(guard(base, { prompt: run('slow'), model: 'sonnet' }).out, '');
 });
 
 test('STOP message says return WAIT', () => {

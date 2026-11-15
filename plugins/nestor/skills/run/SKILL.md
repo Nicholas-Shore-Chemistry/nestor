@@ -3,7 +3,7 @@ name: run
 description: Start a NestOr run from a brief file. Only you can start it.
 argument-hint: <brief path>
 disable-model-invocation: true
-allowed-tools: Bash(node "${CLAUDE_PLUGIN_ROOT}/scripts/config.mjs" *), Bash(node "${CLAUDE_PLUGIN_ROOT}/scripts/usage-gate.mjs" *), Bash(node "${CLAUDE_PLUGIN_ROOT}/scripts/ctx.mjs" *), Bash(node "${CLAUDE_PLUGIN_ROOT}/scripts/tick.mjs" *), Bash(node "${CLAUDE_PLUGIN_ROOT}/scripts/wait.mjs" *), Read(${CLAUDE_PLUGIN_ROOT}/rules/*), Edit(./orchestration/HANDOFF-*.md), Write(./orchestration/HANDOFF-*.md), Edit(./orchestration/STATUS.md), Write(./orchestration/STATUS.md), Edit(./orchestration/rules.md), Write(./orchestration/rules.md)
+allowed-tools: Bash(node "${CLAUDE_PLUGIN_ROOT}/scripts/config.mjs" --print *), Bash(node "${CLAUDE_PLUGIN_ROOT}/scripts/usage-gate.mjs" *), Bash(node "${CLAUDE_PLUGIN_ROOT}/scripts/ctx.mjs" *), Bash(node "${CLAUDE_PLUGIN_ROOT}/scripts/tick.mjs" *), Bash(node "${CLAUDE_PLUGIN_ROOT}/scripts/wait.mjs" *), Read(${CLAUDE_PLUGIN_ROOT}/rules/*), Edit(./orchestration/HANDOFF-*.md), Write(./orchestration/HANDOFF-*.md), Edit(./orchestration/STATUS.md), Write(./orchestration/STATUS.md), Edit(./orchestration/rules.md), Write(./orchestration/rules.md)
 ---
 
 # NestOr run
