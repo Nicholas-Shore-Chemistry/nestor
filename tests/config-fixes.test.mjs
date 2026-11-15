@@ -1,4 +1,5 @@
-// WP4.2d config items C1-C8 (config.mjs). These are the config-script items, not WP4.4-C2/C3/C4.
+// config.mjs edge cases: inherited names, unreadable files, non-objects on the path, locks, BOMs, dropped keys,
+// unknown keys and repeated presets.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -12,7 +13,7 @@ const keys = Object.keys(flatten(DEFAULTS));
 const order = ['gate', 'fiveHour', 'weekly', 'context', 'cache', 'agents', 'grunt', 'worker'];
 const enterAll = ['custom', ...order.flatMap((g) => keys.filter((k) => k.split('.')[0] === g)).map(() => '')].join('\n') + '\n';
 
-test('config C1: inherited names are not keys (--set and --reset exit 5)', () => {
+test('config: inherited names are not keys (--set and --reset exit 5)', () => {
   for (const args of [['--set', 'constructor=5'], ['--set', 'toString=1'], ['--set', '__proto__.x=1'], ['--reset', 'constructor'], ['--reset', 'hasOwnProperty']]) {
     const d = tempDir();
     assert.equal(run(d, args).code, 5, args.join(' '));
@@ -20,7 +21,7 @@ test('config C1: inherited names are not keys (--set and --reset exit 5)', () =>
   }
 });
 
-test('config C2: interactive on an unreadable file stops with exit 2 and leaves it alone', () => {
+test('config: interactive on an unreadable file stops with exit 2 and leaves it alone', () => {
   const d = tempDir();
   writeCfg(d, '{ not json');
   const r = run(d, ['--interactive'], enterAll);
@@ -29,7 +30,7 @@ test('config C2: interactive on an unreadable file stops with exit 2 and leaves 
   assert.equal(fs.readFileSync(cfgFile(d), 'utf8'), '{ not json');
 });
 
-test('config C2: a preset typed at the interactive prompt does not overwrite an unreadable file', () => {
+test('config: a preset typed at the interactive prompt does not overwrite an unreadable file', () => {
   const d = tempDir();
   writeCfg(d, '{ not json');
   const r = run(d, ['--interactive'], 'standard\n');
@@ -37,7 +38,7 @@ test('config C2: a preset typed at the interactive prompt does not overwrite an 
   assert.equal(fs.readFileSync(cfgFile(d), 'utf8'), '{ not json');
 });
 
-test('config C2: interactive shows the load warnings before the prompts', () => {
+test('config: interactive shows the load warnings before the prompts', () => {
   const d = tempDir();
   writeCfg(d, { weekly: { start: 500 }, bogus: 1 });
   const r = run(d, ['--interactive'], enterAll);
@@ -47,7 +48,7 @@ test('config C2: interactive shows the load warnings before the prompts', () => 
   assert.ok(r.out.indexOf('bogus') < r.out.indexOf('-- gate'));
 });
 
-test('config C3: a non-object on the path is a validation problem (exit 2, nothing written)', () => {
+test('config: a non-object on the path is a validation problem (exit 2, nothing written)', () => {
   for (const text of ['{"gate":"x"}', '{"gate":{"fiveHour":5}}', '{"gate":null}']) {
     const d = tempDir();
     writeCfg(d, text);
@@ -64,7 +65,7 @@ test('config C3: a non-object on the path is a validation problem (exit 2, nothi
   }
 });
 
-test('config C4: rename is retried on a transient lock, bounded, and the temp file is cleaned up', () => {
+test('config: rename is retried on a transient lock, bounded, and the temp file is cleaned up', () => {
   const d = tempDir();
   const file = path.join(d, 'nestor', 'config.json');
   let calls = 0;
@@ -94,7 +95,7 @@ test('config C4: rename is retried on a transient lock, bounded, and the temp fi
   assert.equal(other, 1);
 });
 
-test('config C5: a BOM file still reads and the source holds no raw BOM character', () => {
+test('config: a BOM file still reads and the source holds no raw BOM character', () => {
   const d = tempDir();
   writeCfg(d, '\uFEFF{"grunt":{"rotateK":120}}');
   assert.equal(run(d, ['--set', 'grunt.subOrch=off']).code, 0);
@@ -102,7 +103,7 @@ test('config C5: a BOM file still reads and the source holds no raw BOM characte
   assert.equal(fs.readFileSync(CONFIG_SCRIPT, 'utf8').includes('\uFEFF'), false);
 });
 
-test('config C6: unknown keys dropped on write are named on stderr, without values', () => {
+test('config: unknown keys dropped on write are named on stderr, without values', () => {
   const d = tempDir();
   writeCfg(d, { grunt: { subOrch: false, old: 'secret-value-77' }, bogus: 12345 });
   const r = run(d, ['--set', 'weekly.start=80']);
@@ -114,13 +115,13 @@ test('config C6: unknown keys dropped on write are named on stderr, without valu
   assert.deepEqual(readCfg(d), { grunt: { subOrch: false }, weekly: { start: 80 } });
 });
 
-test('config C6: no warning when nothing is dropped', () => {
+test('config: no warning when nothing is dropped', () => {
   const d = tempDir();
   const r = run(d, ['--set', 'weekly.start=80']);
   assert.equal(r.err, '');
 });
 
-test('config C7: an unknown key is a usage error even on an unreadable file', () => {
+test('config: an unknown key is a usage error even on an unreadable file', () => {
   const d = tempDir();
   writeCfg(d, '{ not json');
   assert.equal(run(d, ['--set', 'nope=1']).code, 5);
@@ -128,7 +129,7 @@ test('config C7: an unknown key is a usage error even on an unreadable file', ()
   assert.equal(fs.readFileSync(cfgFile(d), 'utf8'), '{ not json');
 });
 
-test('config C8: a second --preset is a usage error', () => {
+test('config: a second --preset is a usage error', () => {
   const d = tempDir();
   const r = run(d, ['--preset', 'standard', '--preset', 'ultra']);
   assert.equal(r.code, 5);

@@ -51,7 +51,7 @@ test('NESTOR-RUN worker denied on NO-DATA with the ctx-meter hint', () => {
   const r = guard(cfgDir(null), { prompt: run(), model: 'sonnet' });
   const reason = denyReason(r);
   assert.match(reason, /^NestOr usage gate NO-DATA \(no snapshot with rate limits; pathway slow, action worker\)\. Do not spawn\. /);
-  // WP4.4-C4: a denial is final, as skills/run says; no "wait and retry"
+  // a denial is final, as skills/run says; no "wait and retry"
   assert.match(reason, /Do not retry or work around it: stop and tell the user\./);
   assert.doesNotMatch(reason, /retry the spawn|then retry|Wait with/);
   assert.match(reason, /Is ctx-meter wired as the statusline\? Run \/ctx-meter:setup/);

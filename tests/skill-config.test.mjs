@@ -80,7 +80,7 @@ test('config skill holds no absolute path', () => {
   assert.doesNotMatch(text, /~\//);
 });
 
-// Arguments (WP4.4b)
+// Arguments
 const argSection = (() => {
   const i = body.indexOf('## Arguments');
   assert.ok(i >= 0, 'an Arguments section exists');

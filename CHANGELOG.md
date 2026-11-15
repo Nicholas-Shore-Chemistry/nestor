@@ -19,6 +19,10 @@
   `estimated net saving` instead of `weighted net saving` (#1).
 - Docs: headless report-and-stop is the intended behaviour; the limits of the run's grants (`-p` turns, `bg.mjs`,
   untested path forms) and the honour system of the file grants are written down (#1).
+- Tests: the command checker knows more tools, wrappers and `./script` forms; one check covers every `node` command
+  in every skill against that skill's Bash rules only; plugin paths and the `rules/` folder are pinned; prose in the
+  README, CHANGELOG and docs keeps the 120-column wrap; `how-it-works.md` headings are unique; test names say what
+  they check instead of carrying planning IDs (#1).
 
 ## 0.2.5
 
@@ -72,7 +76,10 @@
 - Usage log lines carry `tag`, `session` and `event` (`usage-gate.mjs` / `tick.mjs --event`); stdout is unchanged.
 - New `scripts/calibrate.mjs`: start-up tokens, growth per turn and weighted cost per agent type, `pct_per_mtok` fitted
   from the usage log, and `burn_pct` per finished agent. Measurement only; no gate reads it yet.
-- `nestor:nestor` and `nestor:worker` now declare a `tools:` list, so they no longer load every tool definition, skill description and deferred tool name at start. Before: `nestor:grunt` about 15.0k, `nestor:worker` about 40.7k subagent tokens. After values are pending live verification. A worker task that needs MCP tools, web access or skills goes to an ordinary agent type.
+- `nestor:nestor` and `nestor:worker` now declare a `tools:` list, so they no longer load every tool definition, skill
+  description and deferred tool name at start. Before: `nestor:grunt` about 15.0k, `nestor:worker` about 40.7k subagent
+  tokens. After values are pending live verification. A worker task that needs MCP tools, web access or skills goes to
+  an ordinary agent type.
 
 ## 0.1.1
 

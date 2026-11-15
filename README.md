@@ -60,9 +60,10 @@ headless run (`claude -p`) doesn't wait: it writes its resume point, reports the
 `NESTOR_HEADLESS_WAIT=1` to make it wait anyway.
 
 NestOr's own steps are single plain commands: its scripts, which the run pre-approves, `git` and `sleep`. The commands
-and edits your brief asks for need your own permission rules. Don't add `Bash(node:*)` for NestOr: it lets an agent
-run any code, and an interactive run doesn't need it. It does not cover a `-p` run's later turns (below) or a grunt's
-`bg.mjs`, which runs any command and so is never pre-approved. See "What the run skill pre-approves" in [docs/how-it-works.md](docs/how-it-works.md).
+and edits your brief asks for need your own permission rules. Don't add `Bash(node:*)` for NestOr: it lets an agent run
+any code, and an interactive run doesn't need it. It does not cover a `-p` run's later turns (below) or a grunt's
+`bg.mjs`, which runs any command and so is never pre-approved. See "What the run skill pre-approves" in
+[docs/how-it-works.md](docs/how-it-works.md).
 
 Keep an interactive Claude Code session open for the whole run. The statusline only runs there, and without it the gate
 has no fresh data. A headless run (`claude -p`) writes no usage data, so it gets `NO-DATA`. After a window reset the
@@ -92,7 +93,8 @@ Skip the questions by adding a word:
 Presets and reset replace your earlier changes. If the file holds any, or can't be read cleanly, the skill asks before
 it goes on. Without a word, you can also pick Custom and go through the settings group by group.
 
-The defaults, and how to run the script from a terminal, are in [docs/how-it-works.md](docs/how-it-works.md#the-config-file).
+The defaults, and how to run the script from a terminal, are in
+[docs/how-it-works.md](docs/how-it-works.md#the-config-file).
 
 ## What the guard does and doesn't
 
@@ -105,8 +107,8 @@ to read, it answers `NO-DATA` and the spawn is denied. The reasoning is in [docs
 project rules and extra agents are in [docs/add-ons.md](docs/add-ons.md).
 
 The grunt is optional. It is on for the controller and each sub-orchestrator by default; `grunt.subOrch=off` in the
-config or `Grunt: off` in a brief switches it off. The results so far come from one person's runs, so nothing is claimed about what it does for your
-usage.
+config or `Grunt: off` in a brief switches it off. The results so far come from one person's runs, so nothing is claimed
+about what it does for your usage.
 
 ## Uninstall
 

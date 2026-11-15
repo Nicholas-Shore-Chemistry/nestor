@@ -58,8 +58,8 @@ test('stale snapshot gives NO-DATA', () => {
   assert.match(r.hint, /refreshInterval/);
 });
 
-// WP4.4-C3: a passed window is no reading of the current window, whatever the snapshot's age.
-test('WP4.4-C3: a passed 5h reset gives NO-DATA needing a reading, stale or fresh snapshot', () => {
+// a passed window is no reading of the current window, whatever the snapshot's age.
+test('a passed 5h reset gives NO-DATA needing a reading, stale or fresh snapshot', () => {
   for (const updated of [NOW - 3 * 3600_000, NOW - 30_000]) {
     const r = ev(dirWith([{ five: 100, reset: NOW - 60_000, updated }]), { pathway: 'fast', action: 'orch' });
     assert.equal(r.verdict, 'NO-DATA', `updated ${NOW - updated} ms ago`);
@@ -72,14 +72,14 @@ test('WP4.4-C3: a passed 5h reset gives NO-DATA needing a reading, stale or fres
   }
 });
 
-test('WP4.4-C3: a passed weekly reset with the 5h check on gives NO-DATA needing a reading', () => {
+test('a passed weekly reset with the 5h check on gives NO-DATA needing a reading', () => {
   const r = ev(dirWith([{ five: 10, week: 99, weekReset: NOW - 60_000 }]));
   assert.equal(r.verdict, 'NO-DATA');
   assert.equal(r.reason, 'no reading since the weekly reset');
   assert.equal(r.needs_reading, true);
 });
 
-test('WP4.4-C3: a live window in any snapshot wins over a passed one', () => {
+test('a live window in any snapshot wins over a passed one', () => {
   const r = ev(dirWith([{ five: 100, reset: NOW - 60_000 }, { five: 20 }]));
   assert.equal(r.verdict, 'GO');
   assert.equal(r.five_hour, 20);
@@ -251,7 +251,7 @@ test('G1: waitDelayMs caps the sleep at the time left, with a floor', () => {
   assert.equal(waitDelayMs(1e6, -5000), 100);
 });
 
-// WP4.4-C3 --wait paths. Fixtures are dated from the real clock.
+// --wait paths. Fixtures are dated from the real clock.
 function runWait(base, args, extraEnv = {}) {
   const child = spawn(process.execPath, [GATE, '--wait', '--poll-sec', '1', ...args], {
     env: { ...process.env, CLAUDE_CODE_ENTRYPOINT: 'cli', CLAUDE_CONFIG_DIR: base, ...extraEnv },
@@ -262,7 +262,7 @@ function runWait(base, args, extraEnv = {}) {
   return { done };
 }
 
-test('WP4.4-C3: --wait exits at once with NO-DATA when the reset passes during the wait', async () => {
+test('--wait exits at once with NO-DATA when the reset passes during the wait', async () => {
   const base = cfgDir([{ five: 70, reset: Date.now() + 1500 }]);
   const t0 = Date.now();
   const { done } = runWait(base, ['--max-wait-min', '1']);
@@ -274,7 +274,7 @@ test('WP4.4-C3: --wait exits at once with NO-DATA when the reset passes during t
   assert.ok(Date.now() - t0 < 20_000);
 });
 
-test('WP4.4-C3: --wait that starts needing a reading keeps polling until GO', async () => {
+test('--wait that starts needing a reading keeps polling until GO', async () => {
   const base = cfgDir([{ five: 70, reset: Date.now() - 60_000 }]);
   const { done } = runWait(base, ['--max-wait-min', '0.5']);
   await new Promise((r) => setTimeout(r, 1500));
@@ -284,7 +284,7 @@ test('WP4.4-C3: --wait that starts needing a reading keeps polling until GO', as
   assert.equal(JSON.parse(out.trim()).verdict, 'GO');
 });
 
-test('WP4.4-C3: --wait that starts needing a reading ends in TIMEOUT if none arrives', async () => {
+test('--wait that starts needing a reading ends in TIMEOUT if none arrives', async () => {
   const base = cfgDir([{ five: 70, reset: Date.now() - 60_000 }]);
   const { done } = runWait(base, ['--max-wait-min', '0.03']);
   const { code, out } = await done;
@@ -338,7 +338,7 @@ test('CLI verdict line carries now as an ISO time', () => {
   assert.equal(new Date(now).toISOString(), r.out.now);
 });
 
-// WP4.6 fix 3 (E4): a headless session (claude -p: CLAUDE_CODE_ENTRYPOINT=sdk-cli) never blocks in --wait.
+// a headless session (claude -p: CLAUDE_CODE_ENTRYPOINT=sdk-cli) never blocks in --wait.
 test('headless: --wait on NO-START returns at once with wait_skipped, never GO', () => {
   const t0 = Date.now();
   const r = cli(cfgDir([{ five: 70 }]), ['--path', 'slow', '--action', 'orch', '--wait', '--max-wait-min', '5'], {
