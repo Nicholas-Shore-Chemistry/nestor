@@ -170,7 +170,7 @@ test('audit line written only with NESTOR_GUARD_LOG', () => {
   assert.equal(fs.readdirSync(PLUGIN).some((f) => f.endsWith('.jsonl')), false);
 });
 
-test('hooks.json matches Agent|Task and SubagentHandback and uses CLAUDE_PLUGIN_ROOT', () => {
+test('hooks.json matches Agent|Task, SubagentHandback and MCP tools and uses CLAUDE_PLUGIN_ROOT', () => {
   const hooks = JSON.parse(fs.readFileSync(path.join(PLUGIN, 'hooks', 'hooks.json'), 'utf8'));
   assert.deepEqual(hooks, {
     hooks: {
@@ -182,6 +182,10 @@ test('hooks.json matches Agent|Task and SubagentHandback and uses CLAUDE_PLUGIN_
         {
           matcher: 'SubagentHandback',
           hooks: [{ type: 'command', command: 'node "${CLAUDE_PLUGIN_ROOT}/scripts/reply-filter.mjs"' }],
+        },
+        {
+          matcher: 'mcp__.*',
+          hooks: [{ type: 'command', command: 'node "${CLAUDE_PLUGIN_ROOT}/scripts/mcp-guard.mjs"' }],
         },
       ],
     },

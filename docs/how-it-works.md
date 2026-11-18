@@ -26,7 +26,20 @@ A run has three kinds of agent.
 - Workers and reviewers do the work. Ordinary ones are normal agent types. `nestor:worker` is for a worker that
   waits on an external job for more than 5 minutes. It has only `Bash`, `Read`, `Edit`, `Write`, `Glob` and `Grep`,
   which keeps its start-up context small; a task that needs MCP tools, web access or skills goes to an ordinary agent
-  type. `nestor:nestor` and `nestor:grunt` also carry a `tools:` list, for the same reason.
+  type, or to the grunt for MCP reads (see below).
+
+Which agent has which tools:
+
+| Agent | Tools | MCP tools |
+| --- | --- | --- |
+| `nestor:nestor` | everything but `PowerShell`, `WebFetch`, `WebSearch`, `NotebookEdit`, `Skill` | all, for its own bookkeeping writes (one progress write per merge, small lists) |
+| `nestor:worker` | `Bash`, `Read`, `Edit`, `Write`, `Glob`, `Grep` | none: an MCP write goes to an ordinary agent type, for example a Sonnet `general-purpose` worker |
+| `nestor:grunt` | everything but `Agent`, `SendMessage`, `TaskStop`, `WebFetch`, `WebSearch`, `NotebookEdit`, `Skill` | only the read tools on your list (see "The grunt") |
+
+`nestor:nestor` and `nestor:grunt` name what they must not have (`disallowedTools`) instead of what they may have: a
+`tools:` list hides every MCP tool unless it names each server, and a plugin can't know your servers. If you copy an
+agent into your own agents folder to change it, keep `ToolSearch` (deferred tools, MCP included, load through it) and
+the MCP access in this table, or the agent's MCP steps fail.
 
 A fourth, optional agent is `nestor:grunt`, a Haiku helper for mechanical jobs (see "The grunt" below).
 
@@ -339,6 +352,23 @@ list: a later call cannot see whether a background job still runs. Without it th
 to 9 minutes, live check 3 on 0.2.3). Claude Code blocks a foreground `sleep` in agents; `wait.mjs` is a plain `node`
 wait and is pre-approved by `/nestor:run`. `bg.mjs` is not: it runs any command, so the permission check still sees
 the wrapped command.
+
+The grunt can also do large reads from an MCP server: it writes the raw result to a file, runs an extract script on it,
+and the caller reads only the file it gets back, so a dump of 100k characters stays out of the expensive contexts. It
+may call only the MCP tools on your read list, `nestor/grunt-mcp-read.txt` in your Claude config folder: one tool name
+per line, `*` matches any run of characters, `#` starts a comment. For example:
+
+```
+# project reads for the grunt
+mcp__docs__get_page
+mcp__docs__list_*
+```
+
+`mcp-guard.mjs`, a hook on `mcp__.*` that acts only for `nestor:grunt`, denies every other MCP call. With no file, or
+an empty one, the grunt has no MCP tool at all; that is the default. The hook fails closed: if the list can't be read,
+the call is denied. List read tools only. The grunt runs on Haiku, which can corrupt data it retypes (one run turned
+"M365" into "M3"), so writes stay with a stronger agent. Mind `*`: `mcp__docs__*` lets through that server's write
+tools too.
 
 Every task starts and ends with a git guard: the grunt reports the branch and HEAD it saw first and last, so a task
 that switched branches shows up as failed. A grunt is rotated when its context passes `grunt.rotateK`, and replaced
