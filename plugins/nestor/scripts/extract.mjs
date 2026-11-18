@@ -2,7 +2,7 @@
 // Deterministic extraction from a tool result, so the grunt never has to read or retype the data.
 // The grunt calls a read tool, then runs this script; only its lines (or a file path) go back to the caller.
 //
-//   node extract.mjs --tag <TAG> --tool <name> <query> [arg] [--status s] [--all] [--limit n]
+//   node extract.mjs --tag <TAG> --tool <name> <query> [arg words] [--status s] [--all] [--limit n]
 //   node extract.mjs --file <dump> <query> [arg] ...
 //   add --task <id> --label <L>: the result (or the error) goes to a new file in <config>/nestor/reads and stdout
 //   gives one line with its path.
@@ -13,6 +13,7 @@
 // after the tool call. The session comes from --session-id or CLAUDE_CODE_SESSION_ID.
 //
 // Queries: field <dot.path>, rows <key,key>, headings, section <heading>, grep <regex>.
+// The words after the query form its one arg, so a heading or regex with spaces needs no quotes.
 // Output is cut at --limit lines (default 60); --all lifts the limit. rows --status s keeps records whose
 // `status` equals s.
 import crypto from 'node:crypto';
@@ -44,7 +45,8 @@ const textOf = (p) => {
 const QUERIES = {
   field(p, o) {
     // A `{"content":"<text>"}` payload is unwrapped to the text; `field content` still names that text.
-    const v = typeof p === 'string' && o.arg === 'content' ? p : String(o.arg ?? '').split('.').reduce((a, k) => a?.[k], p);
+    const v =
+      typeof p === 'string' && o.arg === 'content' ? p : String(o.arg ?? '').split('.').reduce((a, k) => a?.[k], p);
     if (v === undefined) return ['absent'];
     return typeof v === 'object' ? [short(JSON.stringify(v), 2000)] : String(v).split('\n');
   },
@@ -97,7 +99,9 @@ export function parsePayload(text) {
   }
   if (Array.isArray(v) && v[0]?.type === 'text') return parsePayload(v.map((b) => b.text ?? '').join(''));
   if (v?.content?.[0]?.type === 'text') return parsePayload(v.content[0].text);
-  if (typeof v?.content === 'string') return parsePayload(v.content);
+  // Only `{"content":"<text>"}` is a wrapper; with other keys beside it the object is the data.
+  const onlyContent = v && typeof v === 'object' && !Array.isArray(v) && Object.keys(v).join() === 'content';
+  if (onlyContent && typeof v.content === 'string') return parsePayload(v.content);
   return v;
 }
 
@@ -110,6 +114,9 @@ const inside = (dir, real) => {
 // `projects` (or the temp dir). Nothing else is read: not `.credentials.json`, not a transcript.
 const overflowFile = (file, configDir) => {
   if (!file || !fs.existsSync(file)) return null;
+  // The name in the stub must itself be a regular file: lstat before realpath, which would follow a link.
+  const own = fs.lstatSync(file);
+  if (own.isSymbolicLink() || !own.isFile()) return null;
   const real = fs.realpathSync(file);
   if (path.basename(path.dirname(real)) !== 'tool-results') return null;
   if (![path.join(configDir, 'projects'), os.tmpdir()].some((d) => fs.existsSync(d) && inside(d, real))) return null;
@@ -273,7 +280,8 @@ function main(argv) {
     else if (VALUE_FLAGS.includes(a)) o[a.slice(2).replace(/-id$/, '')] = argv[++i];
     else o.pos.push(a);
   }
-  const [query, arg] = o.pos;
+  const [query, ...rest] = o.pos;
+  const arg = rest.length ? rest.join(' ') : undefined; // a multi-word heading or regex needs no quotes
   if (!query || (!o.tag && !o.file)) throw new Error('usage: extract.mjs --tag <tag> --tool <name> | --file <path>  <query> [arg]');
   if (o.tag && !o.tool) throw new Error('--tool <name> is required with --tag');
   let text;

@@ -300,6 +300,21 @@ test('a payload with a string `content` (filesystem read_text_file) is unwrapped
   assert.equal(runQuery(parsePayload(forms[0]), 'field', { arg: 'content' }).split('\n')[0], '# Top');
 });
 
+test('an object with `content` beside other keys stays a normal payload', () => {
+  const p = parsePayload(JSON.stringify({ id: 7, title: 'T', content: mdText }));
+  assert.equal(runQuery(p, 'field', { arg: 'id' }), '7');
+  assert.equal(runQuery(p, 'field', { arg: 'title' }), 'T');
+  assert.equal(runQuery(p, 'field', { arg: 'content' }).split('\n')[0], '# Top');
+  assert.equal(parsePayload(JSON.stringify({ content: mdText })), mdText);
+});
+
+test('CLI: the words after the query form one arg, so a heading with spaces works', () => {
+  const file = path.join(tmp(), 'd.md');
+  fs.writeFileSync(file, '# Top\n## Two words\nbody\n## Next\n');
+  const r = spawnSync(process.execPath, [SCRIPT, '--file', file, 'section', 'Two', 'words'], { encoding: 'utf8' });
+  assert.equal(r.stdout, '## Two words\nbody\n', r.stderr);
+});
+
 test('--limit also shortens one multi-line field value', () => {
   const p = { content: Array.from({ length: 15 }, (_, i) => `l${i}`).join('\n') };
   const out = runQuery(p, 'field', { arg: 'content', limit: 5 }).split('\n');
@@ -312,12 +327,35 @@ const overflowStub = (target, config) => {
   return () => loadFromTranscript(f.file, 'read_thing', config);
 };
 
-test('an overflow file that cannot be opened gives a short error without the path', () => {
+const shortError = (marker) => (e) => /overflowed but no readable file/.test(e.message) && !e.message.includes(marker);
+
+test('an overflow file that is missing gives a short error without the path', () => {
   const config = tmp();
   const dir = path.join(config, 'projects', 'proj', 'sess-1', 'tool-results');
   fs.mkdirSync(dir, { recursive: true });
-  const gone = path.join(dir, 'gone-marker.txt');
-  assert.throws(overflowStub(gone, config), (e) => /overflowed but no readable file/.test(e.message) && !e.message.includes('gone-marker'));
+  assert.throws(overflowStub(path.join(dir, 'gone-marker.txt'), config), shortError('gone-marker'));
+});
+
+test('an overflow file that passes the checks but fails to open gives a short error without the path', () => {
+  const config = tmp();
+  const dir = path.join(config, 'projects', 'proj', 'sess-1', 'tool-results');
+  fs.mkdirSync(dir, { recursive: true });
+  const file = path.join(dir, 'locked-marker.txt');
+  fs.writeFileSync(file, rowsJson);
+  const run = overflowStub(file, config);
+  const open = fs.openSync;
+  // Node's own open error names the path; the script must not pass it on.
+  fs.openSync = (p, ...rest) => {
+    if (String(p).includes('locked-marker')) {
+      throw Object.assign(new Error(`EACCES: permission denied, open '${p}'`), { code: 'EACCES' });
+    }
+    return open(p, ...rest);
+  };
+  try {
+    assert.throws(run, shortError('locked-marker'));
+  } finally {
+    fs.openSync = open;
+  }
 });
 
 test('an overflow stub naming a directory or a symlink is refused without opening it', (t) => {
