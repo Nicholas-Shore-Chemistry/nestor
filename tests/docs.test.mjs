@@ -103,7 +103,7 @@ test('every script named in docs exists', () => {
 export function longProseLines(md, limit = 120) {
   const found = [];
   let fence = false;
-  md.split('\n').forEach((l, i) => {
+  md.split(/\r?\n/).forEach((l, i) => {
     if (l.trimStart().startsWith('```')) fence = !fence;
     else if (!fence && !l.trimStart().startsWith('|') && [...l].length > limit) found.push(i + 1);
   });
