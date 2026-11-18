@@ -1,5 +1,18 @@
 # Changelog
 
+## Unreleased
+
+- Grunt: MCP reads. The grunt can now call the MCP read tools you list in `nestor/grunt-mcp-read.txt` in your Claude
+  config folder, so a large MCP read can go through it and stay out of the caller's context. A new hook,
+  `mcp-guard.mjs`, denies the grunt every other MCP tool; with no list there is none. Writes stay with a stronger
+  agent (#24).
+- Sub-orchestrator: MCP tools are back. Its `tools:` list hid every MCP tool, so its one progress write per merge
+  failed without an error. `nestor:nestor` and `nestor:grunt` now name what they must not have (`disallowedTools`):
+  Claude Code has no `tools:` entry for every server. The grunt also loses `Agent`, `SendMessage` and `TaskStop` for
+  good (#24).
+- Docs: a table of which agent has which tools, and what to keep when you copy an agent to change it (#24).
+- Tests: the 120-column wrap check also passes on a CRLF checkout.
+
 ## 0.2.6
 
 - Spawn guard: a `nestor:nestor` spawn counts as `orch` even without `NESTOR-TAG:`, and a spawn without `model`

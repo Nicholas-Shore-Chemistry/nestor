@@ -41,9 +41,11 @@ test('frontmatter per agent matches the spec', () => {
   assert.equal(f('nestor').model, 'opus');
   assert.equal(f('nestor').effort, 'medium');
   assert.equal(f('nestor').background, 'true');
-  assert.equal(f('nestor').tools, 'Agent, Bash, Read, Edit, Write, Glob, Grep, SendMessage, TaskStop, ToolSearch');
+  // a `tools:` list would hide every MCP tool (Claude Code has no all-servers entry for it), so the sub-orchestrator
+  // names what it must not have instead and keeps MCP tools for its bookkeeping writes
+  assert.equal(f('nestor').disallowedTools, 'PowerShell, WebFetch, WebSearch, NotebookEdit, Skill');
   assert.deepEqual(f('nestor').experimental, { cacheTtl: '1h' });
-  assert.deepEqual(keys('nestor'), ['background', 'description', 'effort', 'experimental', 'model', 'name', 'tools']);
+  assert.deepEqual(keys('nestor'), ['background', 'description', 'disallowedTools', 'effort', 'experimental', 'model', 'name']);
   assert.equal(f('worker').name, 'worker');
   assert.equal(f('worker').model, 'sonnet');
   assert.equal(f('worker').background, 'true');
@@ -54,9 +56,11 @@ test('frontmatter per agent matches the spec', () => {
   assert.equal(f('grunt').name, 'grunt');
   assert.equal(f('grunt').model, 'haiku');
   assert.equal(f('grunt').background, 'true');
-  assert.equal(f('grunt').tools, 'Bash, PowerShell, Read, Edit, Write, Glob, Grep, ToolSearch');
+  // MCP tools stay visible to the grunt; scripts/mcp-guard.mjs lets through only the user's read list
+  assert.equal(f('grunt').disallowedTools, 'Agent, SendMessage, TaskStop, WebFetch, WebSearch, NotebookEdit, Skill');
+  assert.ok(!('tools' in f('grunt')), 'grunt has no tools: list');
   assert.deepEqual(f('grunt').experimental, { cacheTtl: '1h' });
-  assert.deepEqual(keys('grunt'), ['background', 'description', 'experimental', 'model', 'name', 'tools']);
+  assert.deepEqual(keys('grunt'), ['background', 'description', 'disallowedTools', 'experimental', 'model', 'name']);
   for (const n of Object.keys(A)) assert.ok(f(n).description.length > 20, `${n} description`);
   // the descriptions sit in every session's agent list, also in sessions that never orchestrate
   const total = Object.keys(A).reduce((s, n) => s + f(n).description.length, 0);

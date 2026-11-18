@@ -3,7 +3,7 @@ name: nestor
 description: NestOr sub-orchestrator for one work package of a NestOr run. Spawned by the NestOr controller only.
 model: opus
 effort: medium
-tools: Agent, Bash, Read, Edit, Write, Glob, Grep, SendMessage, TaskStop, ToolSearch
+disallowedTools: PowerShell, WebFetch, WebSearch, NotebookEdit, Skill
 background: true
 experimental:
   cacheTtl: 1h
