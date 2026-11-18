@@ -25,11 +25,11 @@ the expected result size.
   Form of one entry: `<label> <query> [arg] [--limit <n>]`, entries split at `;`. The label is the first word and
   only names the output file; it is never a query. The query is the second word, one of `field`, `rows`,
   `headings`, `section`, `grep`. Example task line:
-  `TASK t5: GRUNT-TAG is g-1. tool=read_text_file path=a.md. Queries: Q1 headings; Q2 section Alpha; Q3 field content
-  --limit 5`
-  runs `extract.mjs --tag g-1 --tool read_text_file --task t5 --label Q1 headings`, then `... --label Q2 section Alpha`,
-  then `... --label Q3 field content --limit 5` (label Q1, query `headings`; label Q2, query `section`, arg `Alpha`;
-  label Q3, query `field`, arg `content`).
+  `TASK <id>: GRUNT-TAG is <tag>. tool=<tool> <args>. Queries: LA headings; LB section Alpha; LC field content
+  --limit <n>`
+  runs `extract.mjs --tag <tag> --tool <tool> --task <id> --label LA headings`, then `... --label LB section Alpha`,
+  then `... --label LC field content --limit <n>` (label LA, query `headings`; label LB, query `section`, arg
+  `Alpha`; label LC, query `field`, arg `content`).
 - The grunt calls the tool, then runs `node "<root>/scripts/extract.mjs"` once per query and never retypes or
   processes the data. Queries: `field <dot.path>`, `rows <key,key>`, and on text only `headings`, `section <heading>`
   and `grep` with a regex. Output is cut at a short line limit; `<label> <query> --limit <n>` raises it.
