@@ -358,7 +358,8 @@ The grunt can also do large reads from an MCP server: it calls the tool, `extrac
 result in the grunt's own transcript into a new private file under `nestor/reads` in your Claude config folder, and the
 caller reads only that file, so a dump of 100k characters stays out of the expensive contexts (`reads.md` says when).
 It may call only the MCP tools on your read list, `nestor/grunt-mcp-read.txt` in your Claude config folder: one tool
-name per line, `*` matches any run of characters but never `__`, `#` starts a comment. For example:
+name per line, `#` starts a comment, `*` matches any run of characters but stays within one `__`-separated part
+(`mcp__<server>__<tool>`), and a name with three or more underscores in a row matches only an exact entry. For example:
 
 ```
 # project reads for the grunt

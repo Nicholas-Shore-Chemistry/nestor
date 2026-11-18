@@ -109,7 +109,24 @@ const overflowFile = (file, configDir) => {
   if (!file || !fs.existsSync(file)) return null;
   const real = fs.realpathSync(file);
   if (path.basename(path.dirname(real)) !== 'tool-results' || !fs.statSync(real).isFile()) return null;
-  return [path.join(configDir, 'projects'), os.tmpdir()].some((d) => fs.existsSync(d) && inside(d, real)) ? real : null;
+  if (![path.join(configDir, 'projects'), os.tmpdir()].some((d) => fs.existsSync(d) && inside(d, real))) return null;
+  return { real, st: fs.statSync(real) };
+};
+
+// Read the file through the descriptor that was opened and checked, so a swap after the path checks changes nothing:
+// a regular file, one link only, the same file as checked, and owned by this user where the OS has uids.
+const readChecked = ({ real, st }) => {
+  const fd = fs.openSync(real, fs.constants.O_RDONLY | (fs.constants.O_NOFOLLOW ?? 0));
+  try {
+    const o = fs.fstatSync(fd);
+    const mine = typeof process.getuid !== 'function' || o.uid === process.getuid();
+    if (!o.isFile() || o.nlink !== 1 || o.dev !== st.dev || o.ino !== st.ino || !mine) {
+      throw new Error('result overflowed but no readable file was found');
+    }
+    return fs.readFileSync(fd, 'utf8');
+  } finally {
+    fs.closeSync(fd);
+  }
 };
 
 // A tool result is inline text, or a stub pointing at a file. The harness has two stub forms:
@@ -119,9 +136,9 @@ export function resolveResult(text, configDir = resolveConfigDir()) {
   const overflowed = /^(<persisted-output>|Error: result .*exceeds maximum|Output (has been saved to|too large))/.test(text);
   if (!overflowed) return text;
   const file = text.match(/saved to:?[ \t]+([^\n]+?\.(?:txt|json))(?![\w])/i)?.[1];
-  const real = overflowFile(file, configDir); // read the checked, resolved path, not the name in the stub
-  if (!real) throw new Error('result overflowed but no readable file was found');
-  return fs.readFileSync(real, 'utf8');
+  const checked = overflowFile(file, configDir); // read the checked, resolved path, not the name in the stub
+  if (!checked) throw new Error('result overflowed but no readable file was found');
+  return readChecked(checked);
 }
 
 /** The newest result of `tool` in one transcript. `tool` matches a name with or without its `mcp__<server>__` prefix. */

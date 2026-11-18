@@ -94,6 +94,38 @@ test('an overflow stub can only name a file in a tool-results folder; real files
   }
 });
 
+test('an overflow stub through a junction or directory symlink to a folder outside is refused', (t) => {
+  const config = tmp();
+  const outside = tmp();
+  fs.writeFileSync(path.join(outside, 'r.txt'), rowsJson);
+  const session = path.join(config, 'projects', 'proj', 'sess-1');
+  fs.mkdirSync(session, { recursive: true });
+  const link = path.join(session, 'tool-results');
+  try {
+    fs.symlinkSync(outside, link, 'junction');
+  } catch {
+    return t.skip('directory links not available');
+  }
+  const f = fixture({ head: 'GRUNT-TAG: g-1-aaaa', result: `<persisted-output> saved to: ${path.join(link, 'r.txt')}` });
+  assert.throws(() => loadFromTranscript(f.file, 'read_thing', config), /overflowed/);
+});
+
+test('an overflow stub naming a hard link to a file outside is refused', (t) => {
+  const config = tmp();
+  const outsideFile = path.join(tmp(), 'secret.txt');
+  fs.writeFileSync(outsideFile, rowsJson);
+  const dir = path.join(config, 'projects', 'proj', 'sess-1', 'tool-results');
+  fs.mkdirSync(dir, { recursive: true });
+  const hard = path.join(dir, 'hard.txt');
+  try {
+    fs.linkSync(outsideFile, hard);
+  } catch {
+    return t.skip('hard links not available');
+  }
+  const f = fixture({ head: 'GRUNT-TAG: g-1-aaaa', result: `<persisted-output> saved to: ${hard}` });
+  assert.throws(() => loadFromTranscript(f.file, 'read_thing', config), /overflowed/);
+});
+
 test('an overflow file path may hold spaces', () => {
   const config = path.join(tmp(), 'John Smith');
   const big = path.join(config, 'projects', 'proj', 'sess-1', 'tool-results', 'r 1.txt');
