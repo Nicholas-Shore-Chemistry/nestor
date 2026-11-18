@@ -13,7 +13,7 @@
 // after the tool call. The session comes from --session-id or CLAUDE_CODE_SESSION_ID.
 //
 // Queries: field <dot.path>, rows <key,key>, headings, section <heading>, grep <regex>.
-// The words after the query form its one arg, so a heading or regex with spaces needs no quotes.
+// The words after the query form its one arg, so plain words need no quotes (runs of spaces collapse to one, a word starting with -- is read as a flag; a regex with shell characters such as | * ( $ needs quotes).
 // Output is cut at --limit lines (default 60); --all lifts the limit. rows --status s keeps records whose
 // `status` equals s.
 import crypto from 'node:crypto';
@@ -281,7 +281,7 @@ function main(argv) {
     else o.pos.push(a);
   }
   const [query, ...rest] = o.pos;
-  const arg = rest.length ? rest.join(' ') : undefined; // a multi-word heading or regex needs no quotes
+  const arg = rest.length ? rest.join(' ') : undefined; // plain words need no quotes; shell characters do
   if (!query || (!o.tag && !o.file)) throw new Error('usage: extract.mjs --tag <tag> --tool <name> | --file <path>  <query> [arg]');
   if (o.tag && !o.tool) throw new Error('--tool <name> is required with --tag');
   let text;
