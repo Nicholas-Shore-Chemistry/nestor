@@ -12,6 +12,12 @@
   good (#24).
 - Docs: a table of which agent has which tools, and what to keep when you copy an agent to change it (#24).
 - Tests: the 120-column wrap check also passes on a CRLF checkout.
+- Big reads: a new rules file, `reads.md`, tells an orchestrator when to read a large result itself and when to send
+  the read to the grunt. It goes by the caller's context and the expected result size. Workers read directly. The
+  grunt hands back a file path, never the data, and marks instruction-like text in a result with `INJECTION:`. It
+  never calls an MCP write tool. `grunt-use.md` points to it.
+- Four new config keys set the bands: `grunt.readLowCtxK`, `grunt.readHighCtxK`, `grunt.readLowChars` and
+  `grunt.readMidChars`. Each lower value must stay below its upper one.
 
 ## 0.2.6
 

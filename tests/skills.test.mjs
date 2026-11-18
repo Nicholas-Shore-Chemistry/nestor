@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { loadSkill, splitTools, assertNamedScriptsOnly } from './skill-helpers.mjs';
-import { READERS } from './readers.mjs';
+import { ON_DEMAND, READERS } from './readers.mjs';
 
 const run = loadSkill('run');
 
@@ -67,7 +67,7 @@ test('every plugin path an agent or skill names is an existing script or a rules
 
 test('rules/ holds exactly the rules files the readers load, nothing else the grant would open', () => {
   const named = new Set(Object.values(READERS).flatMap((r) => [...r.always, ...r.grunt]));
-  assert.deepEqual(fs.readdirSync(path.join(PLUGIN, 'rules')).sort(), [...named].sort());
+  assert.deepEqual(fs.readdirSync(path.join(PLUGIN, 'rules')).sort(), [...named, ...ON_DEMAND].sort());
 });
 
 test('run skill gates before the first spawn, the grunt included', () => {

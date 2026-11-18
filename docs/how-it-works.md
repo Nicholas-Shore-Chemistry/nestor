@@ -12,6 +12,7 @@ The rules are split by reader, so each agent reads only its part:
 | `controller.md` | the controller only: sessions, its waits, keep-warm, `HANDOFF-TEXT:` |
 | `replies.md` | every orchestrator that sends `SendMessage`: the controller, and a sub-orchestrator with a grunt |
 | `grunt-use.md` | only an orchestrator that has a grunt |
+| `reads.md` | an orchestrator that has a grunt, before a read whose result may be large (pointer in `grunt-use.md` §6) |
 
 Workers, reviewers and the grunt read none of them: a worker gets the worker rules through its brief and the
 project's `rules.md`, the grunt carries its own rules in its agent body.
@@ -502,5 +503,9 @@ of context, and `Min` values are minutes.
 | `grunt.rotateK` | `60` | A grunt is replaced at this context size. A grunt keeps no state worth keeping, so it rotates early. |
 | `grunt.coldIdleMin` | `50` | Idle minutes after which a grunt's cache counts as cold. |
 | `grunt.coldCtxK` | `40` | A cold grunt above this context size is replaced, not woken. Below `grunt.rotateK`. |
+| `grunt.readLowCtxK` | `60` | Context size (k) below which an orchestrator sends a read to the grunt only above `grunt.readLowChars`. Below `grunt.readHighCtxK`. |
+| `grunt.readHighCtxK` | `100` | Context size (k) above which only the very largest reads go to the grunt. |
+| `grunt.readLowChars` | `4000` | Result size (characters) that sends a read to the grunt below `grunt.readLowCtxK`. Below `grunt.readMidChars`. |
+| `grunt.readMidChars` | `10000` | Result size (characters) that sends a read to the grunt between the two context sizes. |
 | `worker.stopTurns` | `60` | A worker stops with a handoff after this many turns. |
 | `worker.longWaitMin` | `45` | A planned wait longer than this ends the session with a resume point. |
