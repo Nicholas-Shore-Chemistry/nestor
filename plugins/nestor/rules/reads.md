@@ -5,7 +5,8 @@ reply forms are `grunt-use.md` §3 and §4.
 
 For any read whose result may be large: an MCP read tool or a command's output (read files yourself, in part). A
 direct read stays in your context and is paid again on every later turn. A grunt read costs you a couple of turns
-plus a short extract, so the grunt pays only when the result is big. Decide by who you are, your own context and the expected result size.
+plus a short extract, so the grunt pays only when the result is big. Decide by who you are, your own context and
+the expected result size.
 - **Short-lived agents** (a worker) read directly. So does anyone who needs the whole result word for word, and
   anyone reading something small and known.
 - **Orchestrators** use their latest context reading from `node "<root>/scripts/ctx.mjs"`, and never spend a turn to

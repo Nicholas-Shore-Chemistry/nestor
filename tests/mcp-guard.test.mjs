@@ -43,6 +43,10 @@ test('matches: * never runs across the __ between server and tool', () => {
   assert.equal(matches('mcp__docs_admin__delete', ['mcp__docs*']), false);
   assert.equal(matches('mcp__docs__admin__delete', ['mcp__docs__*']), false);
   assert.equal(matches('mcp__docs__admin__get', ['mcp__docs__admin__*']), true);
+  assert.equal(matches('mcp__docs__delete', ['mcp__docs_*']), false);
+  assert.equal(matches('mcp__docs___delete', ['mcp__docs_*']), false);
+  assert.equal(matches('mcp__docs__x__delete', ['mcp__docs__x_*']), false);
+  assert.equal(matches('mcp__docs__x_y', ['mcp__docs__x_*']), true);
   assert.equal(matches('mcp__docs__get_page', ['mcp__docs__*']), true);
   assert.equal(matches('mcp__docs__get_page', ['mcp__*__get_page']), true);
   assert.equal(matches('mcp__docs__admin__get_page', ['mcp__*__get_page']), false);

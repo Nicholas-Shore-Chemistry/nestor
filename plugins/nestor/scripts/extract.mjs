@@ -106,10 +106,10 @@ const inside = (dir, real) => {
 // The harness saves an overflowed result as a file directly in a `tool-results` folder, under the config dir's
 // `projects` (or the temp dir). Nothing else is read: not `.credentials.json`, not a transcript.
 const overflowFile = (file, configDir) => {
-  if (!file || !fs.existsSync(file)) return false;
+  if (!file || !fs.existsSync(file)) return null;
   const real = fs.realpathSync(file);
-  if (path.basename(path.dirname(real)) !== 'tool-results' || !fs.statSync(real).isFile()) return false;
-  return [path.join(configDir, 'projects'), os.tmpdir()].some((d) => fs.existsSync(d) && inside(d, real));
+  if (path.basename(path.dirname(real)) !== 'tool-results' || !fs.statSync(real).isFile()) return null;
+  return [path.join(configDir, 'projects'), os.tmpdir()].some((d) => fs.existsSync(d) && inside(d, real)) ? real : null;
 };
 
 // A tool result is inline text, or a stub pointing at a file. The harness has two stub forms:
@@ -119,8 +119,9 @@ export function resolveResult(text, configDir = resolveConfigDir()) {
   const overflowed = /^(<persisted-output>|Error: result .*exceeds maximum|Output (has been saved to|too large))/.test(text);
   if (!overflowed) return text;
   const file = text.match(/saved to:?[ \t]+([^\n]+?\.(?:txt|json))(?![\w])/i)?.[1];
-  if (!overflowFile(file, configDir)) throw new Error('result overflowed but no readable file was found');
-  return fs.readFileSync(file, 'utf8');
+  const real = overflowFile(file, configDir); // read the checked, resolved path, not the name in the stub
+  if (!real) throw new Error('result overflowed but no readable file was found');
+  return fs.readFileSync(real, 'utf8');
 }
 
 /** The newest result of `tool` in one transcript. `tool` matches a name with or without its `mcp__<server>__` prefix. */

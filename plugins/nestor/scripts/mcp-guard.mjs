@@ -30,7 +30,8 @@ export function parseList(text) {
 export function matches(name, patterns) {
   return patterns.some((p) => {
     const re = new RegExp(`^${p.split('*').map((s) => s.replace(/[.+?^${}()|[\]\\]/g, '\\$&')).join('(?:(?!__).)*')}$`);
-    return re.test(name);
+    // A `_` next to `*` could still join up to a new `__`: the name must have as many `__` parts as the pattern.
+    return re.test(name) && name.split('__').length === p.split('__').length;
   });
 }
 
