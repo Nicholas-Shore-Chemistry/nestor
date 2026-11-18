@@ -21,6 +21,8 @@
 - `extract.mjs`: pulls one query out of a tool result in the grunt's own transcript (`field`, `rows`, `headings`,
   `section`, `grep`), reached by `GRUNT-TAG` or `NESTOR-TAG`. It prints at most 60 lines unless told otherwise. With
   `--task` and `--label` it writes a file under the temp folder and prints only the path. The grunt's rules name it.
+- Rules: `reads.md` also says where MCP writes go: one Sonnet `general-purpose` worker, never the grunt or
+  `nestor:worker`.
 
 ## 0.2.6
 

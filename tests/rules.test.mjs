@@ -122,6 +122,16 @@ test('big reads: bands by config key, file hand-back, injection flag, no writes 
   assert.match(sec, /"<root>\/scripts\/extract\.mjs"/);
 });
 
+test('big reads: MCP writes go to one Sonnet general-purpose worker, never the grunt or nestor:worker', () => {
+  const line = R['reads.md'].split(/\r?\n- /).find((b) => /MCP writes/.test(b) && /plan file/.test(b));
+  assert.ok(line, 'no MCP writes line in reads.md');
+  assert.match(line, /`general-purpose`/);
+  assert.match(line, /`model: sonnet`/);
+  assert.match(line, /counts and warnings/);
+  assert.match(line, /never the grunt/);
+  assert.match(line, /never `nestor:worker`/);
+});
+
 test('names and heads', () => {
   for (const s of ['nestor:nestor', 'nestor:worker', 'nestor:grunt', 'NESTOR-RUN:', 'NESTOR-TAG:', 'GRUNT-TAG:']) {
     assert.ok(all.includes(s), `missing ${s}`);
