@@ -287,3 +287,60 @@ test('CLI: --file reads a dump and prints the query result', () => {
   const r = spawnSync(process.execPath, [SCRIPT, '--file', file, 'rows', 'id'], { encoding: 'utf8' });
   assert.equal(r.stdout, 'a\nb\n');
 });
+
+const mdText = '# Top\ntext\n## Alpha\nbody line\n## Beta\nz\n';
+test('a payload with a string `content` (filesystem read_text_file) is unwrapped like the array form', () => {
+  const forms = [JSON.stringify({ content: mdText }), JSON.stringify({ content: [{ type: 'text', text: mdText }] })];
+  for (const f of forms) {
+    const p = parsePayload(f);
+    assert.equal(runQuery(p, 'headings', {}), '# Top\n## Alpha\n## Beta');
+    assert.equal(runQuery(p, 'section', { arg: 'Alpha' }), '## Alpha\nbody line');
+    assert.equal(runQuery(p, 'grep', { arg: 'BODY' }), '4: body line');
+  }
+  assert.equal(runQuery(parsePayload(forms[0]), 'field', { arg: 'content' }).split('\n')[0], '# Top');
+});
+
+test('--limit also shortens one multi-line field value', () => {
+  const p = { content: Array.from({ length: 15 }, (_, i) => `l${i}`).join('\n') };
+  const out = runQuery(p, 'field', { arg: 'content', limit: 5 }).split('\n');
+  assert.equal(out.length, 6);
+  assert.match(out.at(-1), /10 more lines/);
+});
+
+const overflowStub = (target, config) => {
+  const f = fixture({ head: 'GRUNT-TAG: g-1-aaaa', result: `<persisted-output> saved to: ${target}` });
+  return () => loadFromTranscript(f.file, 'read_thing', config);
+};
+
+test('an overflow file that cannot be opened gives a short error without the path', () => {
+  const config = tmp();
+  const dir = path.join(config, 'projects', 'proj', 'sess-1', 'tool-results');
+  fs.mkdirSync(dir, { recursive: true });
+  const gone = path.join(dir, 'gone-marker.txt');
+  assert.throws(overflowStub(gone, config), (e) => /overflowed but no readable file/.test(e.message) && !e.message.includes('gone-marker'));
+});
+
+test('an overflow stub naming a directory or a symlink is refused without opening it', (t) => {
+  const config = tmp();
+  const dir = path.join(config, 'projects', 'proj', 'sess-1', 'tool-results');
+  fs.mkdirSync(path.join(dir, 'sub.txt'), { recursive: true });
+  assert.throws(overflowStub(path.join(dir, 'sub.txt'), config), /overflowed but no readable file/);
+  const real = path.join(dir, 'real.txt');
+  fs.writeFileSync(real, rowsJson);
+  const link = path.join(dir, 'link.txt');
+  try {
+    fs.symlinkSync(real, link, 'file');
+  } catch {
+    return t.skip('symlinks not available');
+  }
+  assert.throws(overflowStub(link, config), /overflowed but no readable file/);
+});
+
+test('an overflow stub naming a FIFO is refused and never opened', { skip: process.platform === 'win32' }, () => {
+  const config = tmp();
+  const dir = path.join(config, 'projects', 'proj', 'sess-1', 'tool-results');
+  fs.mkdirSync(dir, { recursive: true });
+  const fifo = path.join(dir, 'pipe.txt');
+  if (spawnSync('mkfifo', [fifo]).status !== 0) return;
+  assert.throws(overflowStub(fifo, config), /overflowed but no readable file/);
+});

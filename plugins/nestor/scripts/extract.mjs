@@ -43,8 +43,10 @@ const textOf = (p) => {
 
 const QUERIES = {
   field(p, o) {
-    const v = String(o.arg ?? '').split('.').reduce((a, k) => a?.[k], p);
-    return [v === undefined ? 'absent' : typeof v === 'object' ? short(JSON.stringify(v), 2000) : String(v)];
+    // A `{"content":"<text>"}` payload is unwrapped to the text; `field content` still names that text.
+    const v = typeof p === 'string' && o.arg === 'content' ? p : String(o.arg ?? '').split('.').reduce((a, k) => a?.[k], p);
+    if (v === undefined) return ['absent'];
+    return typeof v === 'object' ? [short(JSON.stringify(v), 2000)] : String(v).split('\n');
   },
   rows(p, o) {
     const list = Array.isArray(p) ? p : Object.values(p ?? {}).find(Array.isArray);
@@ -95,6 +97,7 @@ export function parsePayload(text) {
   }
   if (Array.isArray(v) && v[0]?.type === 'text') return parsePayload(v.map((b) => b.text ?? '').join(''));
   if (v?.content?.[0]?.type === 'text') return parsePayload(v.content[0].text);
+  if (typeof v?.content === 'string') return parsePayload(v.content);
   return v;
 }
 
@@ -108,24 +111,29 @@ const inside = (dir, real) => {
 const overflowFile = (file, configDir) => {
   if (!file || !fs.existsSync(file)) return null;
   const real = fs.realpathSync(file);
-  if (path.basename(path.dirname(real)) !== 'tool-results' || !fs.statSync(real).isFile()) return null;
+  if (path.basename(path.dirname(real)) !== 'tool-results') return null;
   if (![path.join(configDir, 'projects'), os.tmpdir()].some((d) => fs.existsSync(d) && inside(d, real))) return null;
-  return { real, st: fs.statSync(real) };
+  const st = fs.lstatSync(real); // a regular file only: a FIFO or device is never opened
+  return st.isFile() && !st.isSymbolicLink() ? { real, st } : null;
 };
 
 // Read the file through the descriptor that was opened and checked, so a swap after the path checks changes nothing:
 // a regular file, one link only, the same file as checked, and owned by this user where the OS has uids.
+// Any failure gives the same short error: Node's own message would carry the path.
+const NO_FILE = 'result overflowed but no readable file was found';
 const readChecked = ({ real, st }) => {
-  const fd = fs.openSync(real, fs.constants.O_RDONLY | (fs.constants.O_NOFOLLOW ?? 0));
+  let fd;
   try {
+    const { O_RDONLY, O_NOFOLLOW = 0, O_NONBLOCK = 0 } = fs.constants;
+    fd = fs.openSync(real, O_RDONLY | O_NOFOLLOW | O_NONBLOCK);
     const o = fs.fstatSync(fd);
     const mine = typeof process.getuid !== 'function' || o.uid === process.getuid();
-    if (!o.isFile() || o.nlink !== 1 || o.dev !== st.dev || o.ino !== st.ino || !mine) {
-      throw new Error('result overflowed but no readable file was found');
-    }
+    if (!o.isFile() || o.nlink !== 1 || o.dev !== st.dev || o.ino !== st.ino || !mine) throw new Error(NO_FILE);
     return fs.readFileSync(fd, 'utf8');
+  } catch {
+    throw new Error(NO_FILE);
   } finally {
-    fs.closeSync(fd);
+    if (fd !== undefined) fs.closeSync(fd);
   }
 };
 
@@ -137,7 +145,7 @@ export function resolveResult(text, configDir = resolveConfigDir()) {
   if (!overflowed) return text;
   const file = text.match(/saved to:?[ \t]+([^\n]+?\.(?:txt|json))(?![\w])/i)?.[1];
   const checked = overflowFile(file, configDir); // read the checked, resolved path, not the name in the stub
-  if (!checked) throw new Error('result overflowed but no readable file was found');
+  if (!checked) throw new Error(NO_FILE);
   return readChecked(checked);
 }
 

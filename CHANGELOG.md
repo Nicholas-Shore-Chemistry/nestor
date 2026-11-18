@@ -23,7 +23,8 @@
   `section`, `grep`), reached by `GRUNT-TAG` or `NESTOR-TAG`. It prints at most 60 lines unless told otherwise. With
   `--task` and `--label` it writes a new private file under `nestor/reads` in the config folder and prints only the
   path. It never writes through an existing file or a link, and reads overflowed results only from `tool-results`
-  folders. The grunt's rules name it.
+  folders. The grunt's rules name it. A `{"content":"<text>"}` result is read as text, `--limit` also cuts one
+  multi-line `field` value, and an unreadable or special overflow file gives a short error without its path.
 - Rules: `reads.md` also says where MCP writes go: one Sonnet `general-purpose` worker, never the grunt or
   `nestor:worker`.
 
