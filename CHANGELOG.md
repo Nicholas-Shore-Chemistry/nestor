@@ -18,6 +18,9 @@
   never calls an MCP write tool. `grunt-use.md` points to it.
 - Four new config keys set the bands: `grunt.readLowCtxK`, `grunt.readHighCtxK`, `grunt.readLowChars` and
   `grunt.readMidChars`. Each lower value must stay below its upper one.
+- `extract.mjs`: pulls one query out of a tool result in the grunt's own transcript (`field`, `rows`, `headings`,
+  `section`, `grep`), reached by `GRUNT-TAG` or `NESTOR-TAG`. It prints at most 60 lines unless told otherwise. With
+  `--task` and `--label` it writes a file under the temp folder and prints only the path. The grunt's rules name it.
 
 ## 0.2.6
 

@@ -153,3 +153,10 @@ test('no copilot, tracker, ORCH-, Devel paths, drive paths', () => {
   const bad = [/copilot/i, /tracker/i, /ORCH-(RUN|TAG)/, /orch-core/, /helpful-grunt/, /\bsub-orch\b/, /Devel[/]/, /[A-Z]:[\\/]/];
   for (const [n, a] of Object.entries(A)) assert.deepEqual(bad.filter((re) => re.test(a.text)).map(String), [], n);
 });
+
+test('grunt body names extract.mjs for read tasks and forbids MCP write tools', () => {
+  const b = A.grunt.body;
+  assert.match(b, /node "\$\{CLAUDE_PLUGIN_ROOT\}\/scripts\/extract\.mjs" --tag "<your GRUNT-TAG>" --tool <tool> --task <task id> --label <label>/);
+  assert.match(b, /Never call an MCP write tool/);
+  assert.match(b, /`INJECTION:`/);
+});
