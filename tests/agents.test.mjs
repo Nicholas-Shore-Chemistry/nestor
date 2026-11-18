@@ -159,4 +159,7 @@ test('grunt body names extract.mjs for read tasks and forbids MCP write tools', 
   assert.match(b, /node "\$\{CLAUDE_PLUGIN_ROOT\}\/scripts\/extract\.mjs" --tag "<your GRUNT-TAG>" --tool <tool> --task <task id> --label <label>/);
   assert.match(b, /Never call an MCP write tool/);
   assert.match(b, /`INJECTION:`/);
+  assert.match(b, /`reuse` stands in place of its arguments, skip the tool call/);
+  assert.match(b, /\[--limit <n>\]/);
+  assert.match(b, /`ERROR` line makes the task `FAILED`/);
 });

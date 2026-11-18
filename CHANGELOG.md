@@ -4,8 +4,8 @@
 
 - Grunt: MCP reads. The grunt can now call the MCP read tools you list in `nestor/grunt-mcp-read.txt` in your Claude
   config folder, so a large MCP read can go through it and stay out of the caller's context. A new hook,
-  `mcp-guard.mjs`, denies the grunt every other MCP tool; with no list there is none. Writes stay with a stronger
-  agent (#24).
+  `mcp-guard.mjs`, denies the grunt every other MCP tool; with no list there is none. A `*` in the list never matches
+  across `__`, so it stays inside one server or tool name. Writes stay with a stronger agent (#24).
 - Sub-orchestrator: MCP tools are back. Its `tools:` list hid every MCP tool, so its one progress write per merge
   failed without an error. `nestor:nestor` and `nestor:grunt` now name what they must not have (`disallowedTools`):
   Claude Code has no `tools:` entry for every server. The grunt also loses `Agent`, `SendMessage` and `TaskStop` for
@@ -20,7 +20,9 @@
   `grunt.readMidChars`. Each lower value must stay below its upper one.
 - `extract.mjs`: pulls one query out of a tool result in the grunt's own transcript (`field`, `rows`, `headings`,
   `section`, `grep`), reached by `GRUNT-TAG` or `NESTOR-TAG`. It prints at most 60 lines unless told otherwise. With
-  `--task` and `--label` it writes a file under the temp folder and prints only the path. The grunt's rules name it.
+  `--task` and `--label` it writes a new private file under `nestor/reads` in the config folder and prints only the
+  path. It never writes through an existing file or a link, and reads overflowed results only from `tool-results`
+  folders. The grunt's rules name it.
 - Rules: `reads.md` also says where MCP writes go: one Sonnet `general-purpose` worker, never the grunt or
   `nestor:worker`.
 

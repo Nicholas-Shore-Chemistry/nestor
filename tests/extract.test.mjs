@@ -57,6 +57,11 @@ test('a tag that only appears in the middle of the text is not a head tag', () =
   assert.throws(() => findAgentTranscript('ctl-grunt1-ab12', f.session, f.config), /no agent transcript/);
 });
 
+test('a labelled tag outside the prompt (in an early tool result) is not a head tag', () => {
+  const f = fixture({ head: 'You are a reviewer', result: 'handoff text: GRUNT-TAG: ctl-grunt1-ab12' });
+  assert.throws(() => findAgentTranscript('ctl-grunt1-ab12', f.session, f.config), /no agent transcript/);
+});
+
 test('the newest result of a tool is read; the name matches with or without its server prefix', () => {
   const f = fixture({ head: 'GRUNT-TAG: g-1-aaaa', result: rowsJson });
   assert.equal(loadFromTranscript(f.file, 'read_thing').items.length, 2);
@@ -73,10 +78,29 @@ test('an overflowed result is read from the file named in the stub, inside the c
   assert.equal(loadFromTranscript(f.file, 'read_thing', config).items[1].id, 'b');
 });
 
-test('an overflow stub cannot point outside the config dir and the temp dir', () => {
-  const outside = path.join(path.parse(os.homedir()).root, 'nestor-extract-outside.txt');
-  const f = fixture({ head: 'GRUNT-TAG: g-1-aaaa', result: `<persisted-output> saved to: ${outside}` });
-  assert.throws(() => loadFromTranscript(f.file, 'read_thing', tmp()), /overflowed/);
+test('an overflow stub can only name a file in a tool-results folder; real files elsewhere are refused', () => {
+  const config = tmp();
+  const creds = path.join(config, '.credentials.json');
+  fs.writeFileSync(creds, '{"token":"x"}');
+  const other = path.join(tmp(), 'r.txt');
+  fs.writeFileSync(other, rowsJson);
+  const loose = path.join(config, 'projects', 'proj', 'sess-1', 'r.txt');
+  fs.mkdirSync(path.dirname(loose), { recursive: true });
+  fs.writeFileSync(loose, rowsJson);
+  for (const target of [creds, other, loose]) {
+    assert.ok(fs.existsSync(target));
+    const f = fixture({ head: 'GRUNT-TAG: g-1-aaaa', result: `<persisted-output> saved to: ${target}` });
+    assert.throws(() => loadFromTranscript(f.file, 'read_thing', config), /overflowed/, target);
+  }
+});
+
+test('an overflow file path may hold spaces', () => {
+  const config = path.join(tmp(), 'John Smith');
+  const big = path.join(config, 'projects', 'proj', 'sess-1', 'tool-results', 'r 1.txt');
+  fs.mkdirSync(path.dirname(big), { recursive: true });
+  fs.writeFileSync(big, rowsJson);
+  const f = fixture({ head: 'GRUNT-TAG: g-1-aaaa', result: `<persisted-output> saved to: ${big}\nPreview: …` });
+  assert.equal(loadFromTranscript(f.file, 'read_thing', config).items[0].id, 'a');
 });
 
 test('field, rows, headings, section and grep queries', () => {
@@ -92,8 +116,13 @@ test('field, rows, headings, section and grep queries', () => {
   assert.equal(runQuery(md, 'grep', { arg: 'zzz' }), 'no matches');
 });
 
+test('headings, section and grep refuse a JSON payload instead of reporting [object Object]', () => {
+  const p = parsePayload(rowsJson);
+  for (const q of ['headings', 'section', 'grep']) assert.throws(() => runQuery(p, q, { arg: '.' }), /use field or rows/, q);
+});
+
 test('there are no preset queries and no default tool name', () => {
-  for (const q of ['summary', 'wps', 'wp', 'open', 'blocked', 'overdue', 'milestones', 'find'])
+  for (const q of ['summary', 'list', 'find', 'status'])
     assert.throws(() => runQuery({}, q, {}), /unknown query/);
   const r = spawnSync(process.execPath, [SCRIPT, '--tag', 'x', 'field', 'a'], { encoding: 'utf8' });
   assert.notEqual(r.status, 0);
@@ -123,22 +152,71 @@ test('safeName leaves nothing that can move a path', () => {
   assert.equal(safeName('t-5.a_b'), 't-5.a_b');
 });
 
-test('task files stay inside the output folder whatever --task and --tag say', () => {
+const posix = process.platform !== 'win32';
+const RAND = '0123456789abcdef';
+/** Plants a symlink, or returns false when the platform needs privileges for it. */
+const trySymlink = (target, at, type) => {
+  try {
+    fs.symlinkSync(target, at, type);
+    return true;
+  } catch {
+    return false;
+  }
+};
+
+test('task files stay inside the output folder whatever --task and --label say', () => {
   const dir = path.join(tmp(), 'reads');
   for (const task of ['../../escape', '..\\..\\escape', '/etc/passwd', 'C:\\Windows\\x', 'a/../../b']) {
-    const file = writeResult(dir, '../tag', task, 'L', 'text');
+    const file = writeResult(dir, task, '../L', 'text');
     assert.equal(path.dirname(path.resolve(file)), path.resolve(dir), file);
-    assert.match(fs.readFileSync(file, 'utf8'), /## L\ntext/);
+    assert.equal(fs.readFileSync(file, 'utf8'), 'text\n');
   }
   assert.deepEqual(fs.readdirSync(path.dirname(dir)), ['reads']);
 });
 
-test('writeResult appends later labels to the same task file', () => {
+test('each write makes a new file with a random part in its name', () => {
   const dir = path.join(tmp(), 'reads');
-  const a = writeResult(dir, 'tag', 't1', 'first', 'one');
-  const b = writeResult(dir, 'tag', 't1', 'second', 'two');
-  assert.equal(a, b);
-  assert.equal(fs.readFileSync(a, 'utf8'), '## first\none\n## second\ntwo\n');
+  const a = writeResult(dir, 't1', 'first', 'one');
+  const b = writeResult(dir, 't1', 'first', 'two');
+  assert.notEqual(a, b);
+  assert.match(path.basename(a), /^t1-first-[0-9a-f]{16}\.txt$/);
+  assert.equal(fs.readFileSync(a, 'utf8'), 'one\n');
+});
+
+test('a file already at the target path is never written through', () => {
+  const dir = path.join(tmp(), 'reads');
+  writeResult(dir, 'x', 'y', 'first');
+  const target = path.join(dir, `t-L-${RAND}.txt`);
+  fs.writeFileSync(target, 'orig');
+  assert.throws(() => writeResult(dir, 't', 'L', 'new', RAND), /EEXIST/);
+  assert.equal(fs.readFileSync(target, 'utf8'), 'orig');
+});
+
+test('a symlink planted at the target file is refused', (t) => {
+  const dir = path.join(tmp(), 'reads');
+  writeResult(dir, 'x', 'y', 'first');
+  const victim = path.join(tmp(), 'victim.txt');
+  fs.writeFileSync(victim, 'orig');
+  if (!trySymlink(victim, path.join(dir, `t-L-${RAND}.txt`), 'file')) return t.skip('no symlink privilege');
+  assert.throws(() => writeResult(dir, 't', 'L', 'new', RAND));
+  assert.equal(fs.readFileSync(victim, 'utf8'), 'orig');
+});
+
+test('a symlinked output folder is refused', (t) => {
+  const real = tmp();
+  const dir = path.join(tmp(), 'reads');
+  if (!trySymlink(real, dir, 'junction')) return t.skip('no symlink privilege');
+  assert.throws(() => writeResult(dir, 't', 'L', 'new'), /not a plain folder/);
+  assert.deepEqual(fs.readdirSync(real), []);
+});
+
+test('the output folder is 0700 and files are 0600; a folder open to others is refused', { skip: !posix }, () => {
+  const dir = path.join(tmp(), 'reads');
+  const file = writeResult(dir, 't', 'L', 'x');
+  assert.equal(fs.statSync(dir).mode & 0o777, 0o700);
+  assert.equal(fs.statSync(file).mode & 0o777, 0o600);
+  fs.chmodSync(dir, 0o755);
+  assert.throws(() => writeResult(dir, 't', 'L', 'x'), /open to other users/);
 });
 
 test('CLI: --task and --label write a file and print only its path line', () => {
@@ -150,8 +228,8 @@ test('CLI: --task and --label write a file and print only its path line', () => 
   const m = r.stdout.trim().match(/^L1 ok lines=2 FILE: (.+)$/);
   assert.ok(m, r.stdout);
   assert.equal(r.stdout.trim().split('\n').length, 1);
-  assert.ok(path.resolve(m[1]).startsWith(path.resolve(tempDir)), m[1]);
-  assert.equal(fs.readFileSync(m[1], 'utf8'), '## L1\na | one\nb | two\n');
+  assert.equal(path.dirname(path.resolve(m[1])), path.resolve(f.config, 'nestor', 'reads'), m[1]);
+  assert.equal(fs.readFileSync(m[1], 'utf8'), 'a | one\nb | two\n');
 });
 
 test('CLI: a failing query with --task writes the error to the file and prints ERROR', () => {

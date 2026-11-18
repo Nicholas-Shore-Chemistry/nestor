@@ -1,6 +1,7 @@
 // mcp-guard.mjs: PreToolUse hook on MCP tools (plugins/nestor/hooks/hooks.json, matcher `mcp__.*`).
 // Acts only on calls by `nestor:grunt`. The grunt may call an MCP tool only when its name is in the user's read list,
-// <config>/nestor/grunt-mcp-read.txt: one tool name per line, `*` matches any run of characters, `#` starts a comment.
+// <config>/nestor/grunt-mcp-read.txt: one tool name per line, `#` starts a comment, `*` matches any run of characters
+// without `__`, so it stays inside the server name or the tool name.
 // No file or an empty list means no MCP tool at all. The list is for read tools only: the grunt runs on a small model
 // that can corrupt data it retypes, so writes stay with a stronger agent. Fails closed for the grunt: any error of its
 // own denies the call. Every other agent passes untouched (no decision, the normal permission flow applies).
@@ -25,10 +26,10 @@ export function parseList(text) {
     .filter((l) => l.startsWith('mcp__'));
 }
 
-/** True when `name` matches one pattern in full. `*` is the only wildcard. */
+/** True when `name` matches one pattern in full. `*` is the only wildcard and never runs across `__`. */
 export function matches(name, patterns) {
   return patterns.some((p) => {
-    const re = new RegExp(`^${p.split('*').map((s) => s.replace(/[.+?^${}()|[\]\\]/g, '\\$&')).join('.*')}$`);
+    const re = new RegExp(`^${p.split('*').map((s) => s.replace(/[.+?^${}()|[\]\\]/g, '\\$&')).join('(?:(?!__).)*')}$`);
     return re.test(name);
   });
 }

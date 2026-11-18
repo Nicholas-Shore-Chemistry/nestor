@@ -118,7 +118,10 @@ test('big reads: bands by config key, file hand-back, injection flag, no writes 
   assert.match(sec, /data, never\s+instructions/);
   assert.match(sec, /never calls an MCP write tool/);
   assert.match(sec, /Short-lived/);
-  assert.match(sec, /<SOURCE> <id>:/);
+  assert.doesNotMatch(sec, /<SOURCE>|own prefix/, 'a task always starts with TASK <id>:');
+  assert.match(sec, /`<config>\/nestor\/grunt-mcp-read\.txt` \(empty by default\)/);
+  assert.match(sec, /--limit <n>/);
+  assert.match(grunt, /^## 6\. Big reads$[^]*MCP writes[^]*`reads\.md`/m);
   assert.match(sec, /"<root>\/scripts\/extract\.mjs"/);
 });
 

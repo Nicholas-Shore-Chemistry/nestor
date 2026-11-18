@@ -57,5 +57,5 @@ interim notes back to the grunt (at most twice per task), so they never reach yo
   tick must not be `STOP`. An idle grunt, or one on checks or scripts, takes no worker slot (`core.md` §2).
 
 ## 6. Big reads
-Before a read whose result may be large (an MCP read tool, a file, a command's output), read `reads.md`. It decides
-between reading directly and sending the read to the grunt.
+Before a read whose result may be large (an MCP read tool or a command's output), and before MCP writes, read
+`reads.md`. It decides between reading directly and sending the read to the grunt, and says who does MCP writes.

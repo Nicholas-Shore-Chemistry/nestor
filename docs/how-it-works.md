@@ -354,10 +354,11 @@ to 9 minutes, live check 3 on 0.2.3). Claude Code blocks a foreground `sleep` in
 wait and is pre-approved by `/nestor:run`. `bg.mjs` is not: it runs any command, so the permission check still sees
 the wrapped command.
 
-The grunt can also do large reads from an MCP server: it writes the raw result to a file, runs an extract script on it,
-and the caller reads only the file it gets back, so a dump of 100k characters stays out of the expensive contexts. It
-may call only the MCP tools on your read list, `nestor/grunt-mcp-read.txt` in your Claude config folder: one tool name
-per line, `*` matches any run of characters, `#` starts a comment. For example:
+The grunt can also do large reads from an MCP server: it calls the tool, `extract.mjs` pulls each query out of the
+result in the grunt's own transcript into a new private file under `nestor/reads` in your Claude config folder, and the
+caller reads only that file, so a dump of 100k characters stays out of the expensive contexts (`reads.md` says when).
+It may call only the MCP tools on your read list, `nestor/grunt-mcp-read.txt` in your Claude config folder: one tool
+name per line, `*` matches any run of characters but never `__`, `#` starts a comment. For example:
 
 ```
 # project reads for the grunt
