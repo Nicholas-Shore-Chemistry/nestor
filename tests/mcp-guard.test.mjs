@@ -39,6 +39,28 @@ test('matches: exact names and * runs, always the whole name', () => {
   assert.equal(matches('mcp__a__b.c', ['mcp__a__b.c']), true);
 });
 
+test('matches: a ___ run in the name matches only an exact entry', () => {
+  assert.equal(matches('mcp__docs___get', ['mcp__docs_*__get']), false);
+  assert.equal(matches('mcp__a___delete', ['mcp__a_*__*']), false);
+  assert.equal(matches('mcp__docs___get', ['mcp__docs___get']), true);
+  assert.equal(matches('mcp__docs__delete', ['mcp__docs_*']), false);
+  assert.equal(matches('mcp__a__b__c', ['mcp__*__*']), false);
+  assert.equal(matches('mcp__docs__get', ['mcp__docs__*']), true);
+});
+
+test('matches: * never runs across the __ between server and tool', () => {
+  assert.equal(matches('mcp__docs_admin__delete', ['mcp__docs*']), false);
+  assert.equal(matches('mcp__docs__admin__delete', ['mcp__docs__*']), false);
+  assert.equal(matches('mcp__docs__admin__get', ['mcp__docs__admin__*']), true);
+  assert.equal(matches('mcp__docs__delete', ['mcp__docs_*']), false);
+  assert.equal(matches('mcp__docs___delete', ['mcp__docs_*']), false);
+  assert.equal(matches('mcp__docs__x__delete', ['mcp__docs__x_*']), false);
+  assert.equal(matches('mcp__docs__x_y', ['mcp__docs__x_*']), true);
+  assert.equal(matches('mcp__docs__get_page', ['mcp__docs__*']), true);
+  assert.equal(matches('mcp__docs__get_page', ['mcp__*__get_page']), true);
+  assert.equal(matches('mcp__docs__admin__get_page', ['mcp__*__get_page']), false);
+});
+
 test('grunt: no list file or an empty list denies every MCP tool', () => {
   for (const env of [cfg(), cfg(''), cfg('# nothing yet\n')]) {
     const out = decide(call('mcp__docs__get_page'), env);

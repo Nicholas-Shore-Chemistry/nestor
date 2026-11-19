@@ -38,7 +38,10 @@ const PLAN_DEFAULTS = {
     fast: { workers: 4, reviewers: 1, opus: 1, opusSlots: 2 },
     subOrchs: 1,
   },
-  grunt: { controller: true, subOrch: true, rotateK: 60, coldIdleMin: 50, coldCtxK: 40 },
+  grunt: {
+    controller: true, subOrch: true, rotateK: 60, coldIdleMin: 50, coldCtxK: 40,
+    readLowCtxK: 60, readHighCtxK: 100, readLowChars: 4000, readMidChars: 10000,
+  },
   worker: { stopTurns: 60, longWaitMin: 45 },
 };
 
@@ -68,7 +71,7 @@ test('flatten gives dotted keys', () => {
   assert.equal(f['fiveHour.slow.orch'], 50);
   assert.equal(f['gate.fiveHour.enabled'], true);
   assert.equal(f['agents.subOrchs'], 1);
-  assert.equal(Object.keys(f).length, 42);
+  assert.equal(Object.keys(f).length, 46);
   assert.ok(Object.values(f).every((v) => typeof v === 'number' || typeof v === 'boolean'));
 });
 
@@ -324,4 +327,17 @@ test('loadConfig honours CLAUDE_CONFIG_DIR', () => {
 test('config loader source holds no raw BOM character', () => {
   const src = fs.readFileSync(new URL('../plugins/nestor/scripts/lib/nestor-config.mjs', import.meta.url), 'utf8');
   assert.equal(src.includes('\uFEFF'), false);
+});
+
+test('grunt read bands: each lower bound must be below its upper bound; a failed pair goes back to its defaults', () => {
+  for (const [lo, hi] of [['readLowCtxK', 'readHighCtxK'], ['readLowChars', 'readMidChars']]) {
+    assert.ok(DEFAULTS.grunt[lo] < DEFAULTS.grunt[hi], lo);
+    assert.ok(hasErrorFor(validateConfig({ grunt: { [lo]: DEFAULTS.grunt[hi] } }), `grunt.${lo}`), lo);
+    assert.ok(hasErrorFor(validateConfig({ grunt: { [lo]: 0 } }), `grunt.${lo}`), `${lo} at least 1`);
+    assert.ok(hasErrorFor(validateConfig({ grunt: { [hi]: 'x' } }), `grunt.${hi}`), `${hi} whole number`);
+    const r = loadConfig(envWithFile(JSON.stringify({ grunt: { [hi]: 1 } })));
+    assert.deepEqual([r.config.grunt[lo], r.config.grunt[hi]], [DEFAULTS.grunt[lo], DEFAULTS.grunt[hi]], lo);
+    const keep = loadConfig(envWithFile(JSON.stringify({ grunt: { [lo]: 7, [hi]: 9 } })));
+    assert.deepEqual([keep.config.grunt[lo], keep.config.grunt[hi]], [7, 9], lo);
+  }
 });

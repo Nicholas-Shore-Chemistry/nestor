@@ -4,14 +4,29 @@
 
 - Grunt: MCP reads. The grunt can now call the MCP read tools you list in `nestor/grunt-mcp-read.txt` in your Claude
   config folder, so a large MCP read can go through it and stay out of the caller's context. A new hook,
-  `mcp-guard.mjs`, denies the grunt every other MCP tool; with no list there is none. Writes stay with a stronger
-  agent (#24).
+  `mcp-guard.mjs`, denies the grunt every other MCP tool; with no list there is none. A `*` in the list stays within one
+  `__`-separated part, and a name with three or more underscores in a row matches only an exact entry. Writes stay
+  with a stronger agent (#24).
 - Sub-orchestrator: MCP tools are back. Its `tools:` list hid every MCP tool, so its one progress write per merge
   failed without an error. `nestor:nestor` and `nestor:grunt` now name what they must not have (`disallowedTools`):
   Claude Code has no `tools:` entry for every server. The grunt also loses `Agent`, `SendMessage` and `TaskStop` for
   good (#24).
 - Docs: a table of which agent has which tools, and what to keep when you copy an agent to change it (#24).
 - Tests: the 120-column wrap check also passes on a CRLF checkout.
+- Big reads: a new rules file, `reads.md`, tells an orchestrator when to read a large result itself and when to send
+  the read to the grunt. It goes by the caller's context and the expected result size. Workers read directly. The
+  grunt hands back a file path, never the data, and marks instruction-like text in a result with `INJECTION:`. It
+  never calls an MCP write tool. `grunt-use.md` points to it.
+- Four new config keys set the bands: `grunt.readLowCtxK`, `grunt.readHighCtxK`, `grunt.readLowChars` and
+  `grunt.readMidChars`. Each lower value must stay below its upper one.
+- `extract.mjs`: pulls one query out of a tool result in the grunt's own transcript (`field`, `rows`, `headings`,
+  `section`, `grep`), reached by `GRUNT-TAG` or `NESTOR-TAG`. It prints at most 60 lines unless told otherwise. With
+  `--task` and `--label` it writes a new private file under `nestor/reads` in the config folder and prints only the
+  path. It never writes through an existing file or a link, and reads overflowed results only from `tool-results`
+  folders. The grunt's rules name it. A `{"content":"<text>"}` result is read as text, `--limit` also cuts one
+  multi-line `field` value, and an unreadable or special overflow file gives a short error without its path.
+- Rules: `reads.md` also says where MCP writes go: one Sonnet `general-purpose` worker, never the grunt or
+  `nestor:worker`.
 
 ## 0.2.6
 

@@ -55,3 +55,7 @@ interim notes back to the grunt (at most twice per task), so they never reach yo
 - A sub-orchestrator's grunt dies with it and is never handed over; a rotated or resumed one spawns its own.
 - The spawn passes the gate (the hook covers it). `SendMessage` bypasses the hook, so before each task your latest
   tick must not be `STOP`. An idle grunt, or one on checks or scripts, takes no worker slot (`core.md` §2).
+
+## 6. Big reads
+Before a read whose result may be large (an MCP read tool or a command's output), and before MCP writes, read
+`reads.md`. It decides between reading directly and sending the read to the grunt, and says who does MCP writes.

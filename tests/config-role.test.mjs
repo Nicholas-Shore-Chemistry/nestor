@@ -2,7 +2,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { run, tempDir, writeCfg } from './config-helpers.mjs';
-import { ALL_KEYS, READERS, namedKeys, readBody, readRule } from './readers.mjs';
+import { ALL_KEYS, ON_DEMAND, READERS, namedKeys, readBody, readRule } from './readers.mjs';
 import { ROLE_OMIT } from '../plugins/nestor/scripts/config.mjs';
 
 /** Keys of a printed block: "group: a=1 b.c=2" lines after the header. */
@@ -19,7 +19,7 @@ function blockKeys(out) {
 // The texts a role may read: its body, its rules files and the grunt files (the block is made before the switch is known).
 const roleText = (role) => {
   const r = READERS[role];
-  return [readBody(r.body), ...[...r.always, ...r.grunt].map(readRule)].join('\n');
+  return [readBody(r.body), ...[...r.always, ...r.grunt, ...ON_DEMAND].map(readRule)].join('\n');
 };
 
 for (const role of ['controller', 'suborch']) {

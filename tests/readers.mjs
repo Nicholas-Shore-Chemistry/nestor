@@ -1,4 +1,4 @@
-// Who reads which rules file at start-up, and helpers over the rules text.
+// Who reads which rules file at start-up (`reads.md` is read on demand, so it is in no start-up list), and helpers over the rules text.
 // RULES_DIR overrides the rules folder (used to prove a test fails on a broken copy).
 import fs from 'node:fs';
 import path from 'node:path';
@@ -8,7 +8,9 @@ import { DEFAULTS, flatten } from '../plugins/nestor/scripts/lib/nestor-config.m
 export const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 export const PLUGIN = path.join(ROOT, 'plugins', 'nestor');
 export const RULES = process.env.RULES_DIR || path.join(PLUGIN, 'rules');
-export const RULE_FILES = ['core.md', 'workflow.md', 'controller.md', 'replies.md', 'grunt-use.md'];
+/** Rules files an orchestrator opens later, when a rule points to them: not part of the start-up bytes. */
+export const ON_DEMAND = ['reads.md'];
+export const RULE_FILES = ['core.md', 'workflow.md', 'controller.md', 'replies.md', 'grunt-use.md', 'reads.md'];
 
 const norm = (t) => t.replace(/\r\n/g, '\n');
 export const readRule = (name) => norm(fs.readFileSync(path.join(RULES, name), 'utf8'));

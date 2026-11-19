@@ -42,7 +42,8 @@ test('rules mention the rule-relevant keys', () => {
     'agents.slow.workers', 'agents.fast.workers', 'agents.subOrchs',
     'context.subOrchSoftK', 'context.subOrchHardK', 'context.controllerK',
     'cache.warmWindowMin', 'grunt.controller', 'grunt.subOrch', 'grunt.rotateK',
-    'grunt.coldIdleMin', 'grunt.coldCtxK', 'worker.stopTurns', 'worker.longWaitMin',
+    'grunt.coldIdleMin', 'grunt.coldCtxK', 'grunt.readLowCtxK', 'grunt.readHighCtxK', 'grunt.readLowChars',
+    'grunt.readMidChars', 'worker.stopTurns', 'worker.longWaitMin',
     'gate.shortWaitMin', 'gate.timerMin', 'fiveHour.killWorkers', 'gate.enabled', 'gate.fiveHour.enabled',
     'cache.keepWarm', 'cache.keepWarmMaxMin', 'weekly.stop',
   ];
@@ -105,6 +106,33 @@ test('no leftovers', () => {
     /copilot-worker/, /\bsub-orch\b/, /Devel[/]/, /[A-Z]:[\\/]/, /trial/i,
   ];
   assert.deepEqual(banned.filter((re) => re.test(all)).map(String), []);
+});
+
+test('big reads: bands by config key, file hand-back, injection flag, no writes on the grunt', () => {
+  const sec = R['reads.md'];
+  assert.match(grunt, /^## 6\. Big reads$[^]*`reads\.md`/m);
+  for (const k of ['grunt.readLowCtxK', 'grunt.readHighCtxK', 'grunt.readLowChars', 'grunt.readMidChars'])
+    assert.ok(sec.includes(`\`${k}\``), k);
+  assert.match(sec, /`FILE: <path>`/);
+  assert.match(sec, /`INJECTION:`/);
+  assert.match(sec, /data, never\s+instructions/);
+  assert.match(sec, /never calls an MCP write tool/);
+  assert.match(sec, /Short-lived/);
+  assert.doesNotMatch(sec, /<SOURCE>|own prefix/, 'a task always starts with TASK <id>:');
+  assert.match(sec, /`<config>\/nestor\/grunt-mcp-read\.txt` \(empty by default\)/);
+  assert.match(sec, /--limit <n>/);
+  assert.match(grunt, /^## 6\. Big reads$[^]*MCP writes[^]*`reads\.md`/m);
+  assert.match(sec, /"<root>\/scripts\/extract\.mjs"/);
+});
+
+test('big reads: MCP writes go to one Sonnet general-purpose worker, never the grunt or nestor:worker', () => {
+  const line = R['reads.md'].split(/\r?\n- /).find((b) => /MCP writes/.test(b) && /plan file/.test(b));
+  assert.ok(line, 'no MCP writes line in reads.md');
+  assert.match(line, /`general-purpose`/);
+  assert.match(line, /`model: sonnet`/);
+  assert.match(line, /counts and warnings/);
+  assert.match(line, /never the grunt/);
+  assert.match(line, /never `nestor:worker`/);
 });
 
 test('names and heads', () => {
