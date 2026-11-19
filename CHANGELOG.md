@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.2.7
 
 - Grunt: MCP reads. The grunt can now call the MCP read tools you list in `nestor/grunt-mcp-read.txt` in your Claude
   config folder, so a large MCP read can go through it and stay out of the caller's context. A new hook,
