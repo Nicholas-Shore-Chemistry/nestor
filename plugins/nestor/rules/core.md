@@ -19,8 +19,8 @@ A project may add rules in `<project>/orchestration/rules.md`, but may not weake
 under its head lines; a grunt prompt carries no config.
 
 ## 2. Pathways
-The brief states `Pathway: slow` or `Pathway: fast`. **The default is slow**: in unattended and overnight runs, time is
-cheap and the 5h window is not. Fast only when the user picks it.
+The brief states `Pathway: slow` or `Pathway: fast`. **The default is slow**: unattended, time is cheap; the 5h window
+is not. Fast only when the user picks it.
 | | Slow (default) | Fast |
 |---|---|---|
 | Parallel workers, at most | `agents.slow.workers` | `agents.fast.workers` |
@@ -31,7 +31,7 @@ cheap and the 5h window is not. Fast only when the user picks it.
 | Worker slots an Opus worker takes | `agents.slow.opusSlots` | `agents.fast.opusSlots` |
 
 - Count running agents before each dispatch. Parallel workers only on disjoint files, each in its own worktree
-  (`isolation: worktree`). One review at a time: fix rounds queue behind the running review.
+  (`isolation: worktree`; local files via `.worktreeinclude`). One review at a time: fix rounds queue behind it.
 - Reviewers never wait for work. Review tasks collect until a batch is complete (per bundle on fast; on slow, per task
   only when that task can't be bundled), then one reviewer gets the whole batch and returns when done. Never keep a
   reviewer alive between batches.
