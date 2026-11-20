@@ -118,11 +118,15 @@ then, the cache expires and running workers stall. While it waits, the usage gat
 wait ends. Its result says `inhibit=ok` when that worked and `inhibit=unavailable` when it did not, and `slept=<n>`
 when the host slept anyway. The controller tells you once when the lock is unavailable.
 
-- A sleep lock doesn't stop sleep on lid close on most systems (logind `HandleLidSwitch`, macOS outside clamshell
-  mode). Keep the lid open, or the machine on power with an external display.
+- A sleep lock doesn't stop sleep on lid close on most systems (logind `HandleLidSwitch`, KDE PowerDevil, macOS
+  outside clamshell mode). Keep the lid open, or the machine on power with an external display.
 - On battery, the system may sleep or hibernate at low charge regardless of the lock.
 - Inside a sandbox that blocks the system bus (Claude Code's bubblewrap sandbox on Linux), the lock is unavailable.
-  An outside no-sleep tool that writes a heartbeat to `gate.awakeFile` makes the gate report `inhibit=external`.
+  Start `nestor-awake` ([tools/keep-awake](tools/keep-awake/README.md)) in your desktop session instead: while its
+  window is open it holds `systemd-inhibit --what=sleep`, writes a heartbeat to `gate.awakeFile` (default
+  `/tmp/nestor-awake.json`) and the gate reports `inhibit=external`. On KDE Plasma 5 it also sets the AC lid action
+  to "turn off screen" for the run and puts your setting back on exit (`--no-lid` skips that). It stops after 12
+  hours (`--max-hours`). Linux only.
 - On a dedicated box that never sleeps, `gate.inhibitSleep=false` turns the lock off.
 
 ## Uninstall

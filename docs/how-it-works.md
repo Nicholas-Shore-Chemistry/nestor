@@ -142,13 +142,15 @@ A host that sleeps during a wait defeats keep-warm and stalls running workers, a
 - `inhibit`: whether the host was kept awake. `ok`: the gate held a sleep lock for the wait (`systemd-inhibit` on
   Linux, `caffeinate -i -w` on macOS, `SetThreadExecutionState` through a hidden `powershell.exe` on Windows). The
   lock's child process watches the gate's pid, so it ends with the gate on every exit path, `kill -9` included.
-  `external`: an outside no-sleep tool writes a fresh heartbeat to `gate.awakeFile` (under two minutes old, its pid
-  alive), so the gate starts no lock of its own. `unavailable`: no lock could be taken, for example in a bubblewrap
-  sandbox, where `systemd-inhibit` cannot reach the system bus. `off`: `gate.inhibitSleep` is false, the run is
-  headless, or the check was an `ERROR`.
+  `external`: an outside no-sleep tool (`nestor-awake`) writes a fresh heartbeat to `gate.awakeFile` (under two
+  minutes old), so the gate starts no lock of its own. `unavailable`: no lock could be taken, for example in a
+  bubblewrap sandbox, where `systemd-inhibit` cannot reach the system bus. `off`: `gate.inhibitSleep` is false, the
+  run is headless, or the check was an `ERROR`.
 
-The heartbeat file is read as untrusted input: an absolute path, at most 1 KB, a JSON object with the numbers `at`
-(epoch milliseconds) and `pid`; anything else counts as no heartbeat. On `inhibit=unavailable` the controller tells
+The heartbeat file is read as untrusted input: an absolute path, at most 1 KB, a JSON object with the number `at`
+(epoch milliseconds); anything else counts as no heartbeat. Freshness alone decides: the tool's `pid` is in the file
+for people, but a sandbox has its own PID namespace and never sees it. The tool rewrites the file every 30 s and
+removes it on exit. On `inhibit=unavailable` the controller tells
 you once that the host may sleep; the README section "Keeping the host awake" lists what still works.
 
 ## The 5-hour off switch

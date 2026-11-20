@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=NestOr awake
+Comment=Keep this computer awake for an unattended NestOr run while the window is open
+TryExec=konsole
+Exec=konsole -p "tabtitle=NestOr awake — sleep blocked" -e nestor-awake
+Terminal=false
+Icon=preferences-desktop-screensaver
+Categories=Utility;

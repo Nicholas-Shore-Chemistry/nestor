@@ -47,25 +47,14 @@ export function sleepTracker({ wall = () => Date.now(), mono = () => performance
   };
 }
 
-const isPid = (v) => Number.isSafeInteger(v) && v > 0;
-
-/** True if a process with this pid exists. EPERM means it exists but belongs to someone else. */
-export function pidAlive(pid, kill = process.kill.bind(process)) {
-  if (!isPid(pid)) return false;
-  try {
-    kill(pid, 0);
-    return true;
-  } catch (e) {
-    return e?.code === 'EPERM';
-  }
-}
-
 /**
  * Reads the heartbeat file of an external no-sleep tool (nestor-awake). Untrusted input: an absolute path only,
- * at most HEARTBEAT_MAX_BYTES, a JSON object whose `at` (epoch ms) and `pid` are numbers. Returns true only for a
- * fresh heartbeat (under HEARTBEAT_MAX_AGE_MS old, not from the future beyond the same margin) of a live pid.
+ * at most HEARTBEAT_MAX_BYTES, a JSON object whose `at` (epoch ms) is a number. Returns true only for a fresh
+ * heartbeat: under HEARTBEAT_MAX_AGE_MS old and not from the future beyond the same margin. Freshness alone decides:
+ * the tool runs outside the sandbox, whose PID namespace never shows the tool's `pid`; the tool rewrites the file
+ * every 30 s and removes it on exit, so a stale file means the tool is gone.
  */
-export function heartbeatHolds(file, { now = Date.now(), readFile = readSmall, kill } = {}) {
+export function heartbeatHolds(file, { now = Date.now(), readFile = readSmall } = {}) {
   if (typeof file !== 'string' || file === '' || !path.isAbsolute(file)) return false;
   let text;
   try {
@@ -81,10 +70,9 @@ export function heartbeatHolds(file, { now = Date.now(), readFile = readSmall, k
     return false;
   }
   if (v === null || typeof v !== 'object' || Array.isArray(v)) return false;
-  const { at, pid } = v;
-  if (typeof at !== 'number' || !Number.isFinite(at) || !isPid(pid)) return false;
-  if (Math.abs(now - at) >= HEARTBEAT_MAX_AGE_MS) return false;
-  return pidAlive(pid, kill);
+  const { at } = v;
+  if (typeof at !== 'number' || !Number.isFinite(at)) return false;
+  return Math.abs(now - at) < HEARTBEAT_MAX_AGE_MS;
 }
 
 /** Reads a file only if it is a regular file of at most `max` bytes; throws otherwise. */
