@@ -163,3 +163,16 @@ test('grunt body names extract.mjs for read tasks and forbids MCP write tools', 
   assert.match(b, /\[--limit <n>\]/);
   assert.match(b, /`ERROR` line makes the task `FAILED`/);
 });
+
+// #24: an agent without ToolSearch can't load deferred (MCP) tools and fails without an error.
+test('no agent loses ToolSearch; a tools: list without it sends MCP work elsewhere', () => {
+  const names = fs.readdirSync(DIR).filter((f) => f.endsWith('.md')).map((f) => f.slice(0, -3));
+  assert.deepEqual(names.sort(), Object.keys(A).sort(), 'every agent file is parsed above');
+  const list = (v) => (typeof v === 'string' ? v.split(',').map((s) => s.trim()) : []);
+  for (const n of names) {
+    assert.ok(!list(A[n].front.disallowedTools).includes('ToolSearch'), `${n}: disallowedTools names ToolSearch`);
+    if (A[n].front.tools === undefined || list(A[n].front.tools).includes('ToolSearch')) continue;
+    assert.match(A[n].front.description, /MCP tools[^.]*go to an ordinary agent type/, `${n}: gets no MCP work`);
+  }
+  assert.ok(A.worker.front.tools, 'worker keeps its tools: list');
+});

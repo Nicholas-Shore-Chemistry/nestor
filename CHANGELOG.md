@@ -7,6 +7,10 @@
 - New config key `context.coldResumeK` (default 60): the controller may resume cold after a gate wait only while its
   context is at most this size. Above it, or with an unknown context size, it writes the resume point, tells you the
   reset time and ends the session. The config warns when the key is at or above `context.controllerK` (#28).
+- Docs: list the git-ignored local files every worker worktree needs (`.env`, `wrangler.jsonc`, seed data) in a
+  `.worktreeinclude` file; Claude Code copies them into each worktree it creates. `core.md` points to it (#24).
+- Tests: no agent's `disallowedTools` names `ToolSearch`, and an agent with a `tools:` list without it must send MCP
+  work elsewhere (#24).
 
 ## 0.2.7
 

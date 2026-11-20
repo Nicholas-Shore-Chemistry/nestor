@@ -26,6 +26,20 @@ fresh start-up, and the next worker starts from the handoff, not from the old ch
 
 Parallel tasks must touch different files, and each worker runs in its own worktree.
 
+A worktree is a fresh checkout, so git-ignored local files are missing there: a worker that needs `.env`,
+`wrangler.jsonc`, seed data or generated files fails. List them in a `.worktreeinclude` file in the project root
+(gitignore syntax); Claude Code copies every git-ignored file that matches into each worktree it creates, worker
+worktrees included. For example:
+
+```
+.env
+wrangler.jsonc
+seed/
+```
+
+Never list secrets a worker shouldn't see: every worktree gets the matching files. A `WorktreeCreate` hook replaces
+this copy step; then the brief needs its own setup step that copies the files.
+
 ## Steps that can be checked
 
 Write a step so that a script can tell whether it passed. "Run `npm test`; 0 failures" can be checked; "make sure it
