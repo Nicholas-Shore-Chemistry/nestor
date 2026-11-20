@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.2.8 (unreleased)
+## 0.2.8
 
 - Keep-warm is on by default (`cache.keepWarm: true`). With it off, a controller that waited at the gate before a
   spawn resumed its whole context cold, which its own rules forbid (#28).
