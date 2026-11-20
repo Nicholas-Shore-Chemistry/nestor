@@ -6,8 +6,8 @@ Read by the controller only, with `core.md`, `replies.md` and `workflow.md`. A b
 - **Config.** Run `node "<root>/scripts/config.mjs" --print --role <role>` once each, for `controller` (your own values),
   `suborch` and `worker`. Each sub-orchestrator prompt carries the `suborch` block with the `worker` line right under
   it (`core.md` §1). Take every number from these blocks.
-- Never set `subagentPromptCacheTtl` or `CLAUDE_CODE_SUBAGENT_PROMPT_CACHE_TTL`: either one outranks the agent's own
-  setting and gives every agent the same cache lifetime. In usage overage the 1 h cache is ignored.
+- Never set `subagentPromptCacheTtl` or `CLAUDE_CODE_SUBAGENT_PROMPT_CACHE_TTL`: either outranks the agent's own
+  setting, giving every agent one cache lifetime. In usage overage the 1 h cache is ignored.
 - One controller session per work package. At its resume point, or when its context reaches `context.controllerK`,
   write a resume point into the project's status file and end the session. The next session starts fresh from it.
 - A resume point holds what is merged, what is open, the next step, the rulings made, and the paths of brief, plan
@@ -17,7 +17,8 @@ Read by the controller only, with `core.md`, `replies.md` and `workflow.md`. A b
 - **`/clear`, not `/compact`.** Compaction re-reads the whole conversation to summarise it; `/clear` costs nothing.
   When continuity matters, write a resume point first, then clear.
 - **Never resume a large cold context.** After more than 1 h idle the cache has expired, and the next message
-  rewrites the whole context at the cache-write rate.
+  rewrites the whole context at the cache-write rate. Exception: a gate wait (§2) without keep-warm (§3) while the
+  latest tick's `ctx` is at most `context.coldResumeK`.
 - No `/loop`, scheduled tasks or check-ins on a session with a large context: each one resends the full context.
 
 ## 2. Automatic wait
@@ -32,8 +33,9 @@ it prints the one-line form instead (`core.md` §3).
 - `gate.enabled` off: no gate; `gate.fiveHour.enabled` off: no 5h checks.
 - Tick (`core.md` §3) with `--action orch` before the first spawn and before every sub-orchestrator spawn, unless
   `core.md` §3 lets you skip it.
-- Not `GO`: write the resume point into the project's status file first, then start the gate with
-  `--action orch --wait` in the background (Bash, `run_in_background: true`; longest wait `gate.maxWaitMin`; chunked under §3). The
+- Not `GO`: write the resume point into the project's status file first. If keep-warm (§3) doesn't apply and the latest
+  tick's `ctx` is above `context.coldResumeK` or is `?`: tell the user the reset time and end the session (§1).
+  Otherwise start the gate with `--action orch --wait` in the background (Bash, `run_in_background: true`; longest wait `gate.maxWaitMin`; chunked under §3). The
   harness wakes you when it exits: no `/loop`, scheduled wake-ups or polling turns. `GO`: spawn. `TIMEOUT`: `BLOCKED`, tell the user.
   After a reset `--wait` ends with `NO-DATA`: run `--wait` once more with a short `--max-wait-min` for the new reading, then spawn on `GO`.
 - **Headless**, instead of the above (the gate prints `headless: true`): don't wait. Not `GO`: write the resume point
@@ -45,18 +47,17 @@ it prints the one-line form instead (`core.md` §3).
   if the sub-orchestrator reports it never came. Tick only as `core.md` §3 says (after a sub-orchestrator report or a
   merge, before a spawn), never on a grunt reply, a "completed" notice or a timer.
 - A sub-orchestrator that returns `WAIT` waits at no cost in turns while you decide whether to resume it or spawn a
-  fresh one. A fresh one re-reads brief, handoff and repo state; a resumed one is cheap only while its cache is warm:
-  a 1 h cache from its last request for `nestor:nestor` (5 min in usage overage), 5 min for any other agent type. The
-  usable window is `cache.warmWindowMin`, which leaves a margin for the gate's refresh and the resume turn. A fresh
-  sub-orchestrator is spawned only when the wait outlasts the cache window and §3 does not apply.
+  fresh one. A resumed one is cheap only while its cache is warm: 1 h from its last request for `nestor:nestor`, 5 min
+  in overage or for other agent types; `cache.warmWindowMin` leaves a margin. A fresh one re-reads brief, handoff and
+  repo state; spawn it only when the wait outlasts the cache window and §3 does not apply.
 - On `WAIT`, read `warm-until` and `reset` from its `CACHE:` line (`core.md` §4.1):
   - **Warm** (`reset` no later than `warm-until`): background wait with `--max-wait-min` set to the minutes from now
     until `warm-until`. On `GO`, run a foreground tick (`core.md` §3) once more, then `SendMessage` the same
     sub-orchestrator: `RESUME: gate GO <hh:mm>, continue from HANDOFF-<wp>.md`, then wait for its reply (`replies.md`).
     Don't spawn. On `TIMEOUT` its cache has gone cold: go on as for cold. `NO-DATA` with `needs_reading`: run the short `--wait` first, then as for `GO`.
   - **Keep-warm** (`reset` after `warm-until`, and §3 applies): chunked wait with `KEEPWARM` turns as in §3.
-  - **Cold** (`reset` after `warm-until`, `reset` unknown, or `warm-until=none`): background wait as for a gate that
-    isn't `GO`, then spawn a fresh sub-orchestrator with its handoff. Don't `SendMessage` the old one.
+  - **Cold** (`reset` after `warm-until`, `reset` unknown, or `warm-until=none`): as for a gate that isn't `GO`
+    (`context.coldResumeK` included), then spawn a fresh sub-orchestrator with its handoff. Don't `SendMessage` the old one.
   - `SendMessage` gets past the spawn guard, so the foreground gate before a `RESUME` is mandatory.
 
 ## 3. Keep-warm

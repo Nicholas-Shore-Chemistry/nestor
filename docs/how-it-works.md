@@ -307,8 +307,14 @@ write 1.25 to 2 times as much.
   repository, so it costs well over its context size; it is still right when the wait is long or the old context is
   already large.
 
-Keep-warm ships off. Whether it pays depends on what one keep-warm turn and one fresh start really cost on your plan,
-which has not been measured yet; turn it on with `/nestor:config` (group `cache`) if you want to try it.
+The controller's own wait before a spawn has the same three outcomes. Without keep-warm it may still wait cold, but
+only while its context, `ctx` on the latest tick line, is at most `context.coldResumeK`. Above that, or when `ctx` is
+unknown, it writes the resume point into the status file, tells you the reset time and ends the session: resuming a
+large cold context rewrites all of it at twice the input rate after a 1-hour cache, while a fresh session reads only
+the status file.
+
+Keep-warm ships on. Whether it pays on your plan depends on what one keep-warm turn and one fresh start really cost
+there, which has not been measured yet; turn it off with `/nestor:config` (group `cache`) to always go cold.
 
 ### The reply timer
 
@@ -488,8 +494,9 @@ of context, and `Min` values are minutes.
 | `context.subOrchSoftK` | `130` | A sub-orchestrator finishes its step and rotates at this context size. |
 | `context.subOrchHardK` | `150` | A sub-orchestrator rotates at once at this size. |
 | `context.controllerK` | `150` | The controller writes a resume point and ends its session at this size. |
+| `context.coldResumeK` | `60` | Largest controller context that may be resumed cold after a gate wait; above it the controller writes a resume point and ends its session. |
 | `cache.warmWindowMin` | `50` | Minutes after its last request that a sub-orchestrator counts as warm. |
-| `cache.keepWarm` | `false` | Keeps a waiting sub-orchestrator (and the controller) warm with one tiny turn per window instead of letting it go cold. Optional. |
+| `cache.keepWarm` | `true` | Keeps a waiting sub-orchestrator (and the controller) warm with one tiny turn per window instead of letting it go cold. Turn off with `/nestor:config`, group `cache`. |
 | `cache.keepWarmMaxMin` | `180` | Longest usage wait that keep-warm covers; longer waits go cold. |
 | `agents.slow.workers` | `2` | Slow pathway: parallel workers at most. |
 | `agents.slow.reviewers` | `1` | Slow pathway: reviewers at a time at most. |

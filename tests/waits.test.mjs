@@ -46,8 +46,8 @@ test('default timer fires inside the cache window and passes validation', () => 
   assert.deepEqual(validateConfig({}), { errors: [], warnings: [] });
 });
 
-test('keep-warm ships off, and a wait at keepWarmMaxMin costs few tiny sub-orchestrator turns', () => {
-  assert.equal(DEFAULTS.cache.keepWarm, false);
+test('keep-warm ships on, and a wait at keepWarmMaxMin costs few tiny sub-orchestrator turns', () => {
+  assert.equal(DEFAULTS.cache.keepWarm, true);
   const r = keepWarmTurns(DEFAULTS.cache.keepWarmMaxMin, DEFAULTS.cache.warmWindowMin);
   assert.deepEqual(r, { controller: 7, sub: 3 });
   // Cost model of the review: a keep-warm turn reads 0.1 of the context, a cold restart writes it at 1.25 or more.

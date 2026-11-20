@@ -27,8 +27,8 @@ export const DEFAULTS = deepFreeze({
     killWorkers: 95,
   },
   weekly: { start: 85, stop: 92 },
-  context: { subOrchSoftK: 130, subOrchHardK: 150, controllerK: 150 },
-  cache: { warmWindowMin: 50, keepWarm: false, keepWarmMaxMin: 180 },
+  context: { subOrchSoftK: 130, subOrchHardK: 150, controllerK: 150, coldResumeK: 60 },
+  cache: { warmWindowMin: 50, keepWarm: true, keepWarmMaxMin: 180 },
   agents: {
     slow: { workers: 2, reviewers: 1, opus: 1, opusSlots: 2 },
     fast: { workers: 4, reviewers: 1, opus: 1, opusSlots: 2 },
@@ -200,6 +200,10 @@ function softWarnings(cfg) {
   const maxKw = cfg?.cache?.keepWarmMaxMin;
   if (cfg?.cache?.keepWarm === true && num(maxKw) && num(warm) && maxKw <= warm)
     w.push('cache.keepWarmMaxMin at or below cache.warmWindowMin: keep-warm never applies');
+  const cold = cfg?.context?.coldResumeK;
+  const ctrl = cfg?.context?.controllerK;
+  if (num(cold) && num(ctrl) && cold >= ctrl)
+    w.push('context.coldResumeK at or above context.controllerK: the controller may resume any context cold');
   return w;
 }
 
