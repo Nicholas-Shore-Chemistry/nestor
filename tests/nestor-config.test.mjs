@@ -24,6 +24,8 @@ const PLAN_DEFAULTS = {
     shortWaitChunkMin: 9,
     shortWaitTries: 2,
     timerMin: 50,
+    inhibitSleep: true,
+    awakeFile: '/tmp/nestor-awake.json',
   },
   fiveHour: {
     slow: { orch: 50, worker: 65, opus: 55, stop: 80 },
@@ -71,8 +73,28 @@ test('flatten gives dotted keys', () => {
   assert.equal(f['fiveHour.slow.orch'], 50);
   assert.equal(f['gate.fiveHour.enabled'], true);
   assert.equal(f['agents.subOrchs'], 1);
-  assert.equal(Object.keys(f).length, 47);
-  assert.ok(Object.values(f).every((v) => typeof v === 'number' || typeof v === 'boolean'));
+  assert.equal(Object.keys(f).length, 49);
+  assert.ok(Object.values(f).every((v) => ['number', 'boolean', 'string'].includes(typeof v)));
+  assert.deepEqual(Object.keys(f).filter((k) => typeof f[k] === 'string'), ['gate.awakeFile']);
+});
+
+test('gate.inhibitSleep is a boolean, on by default; gate.awakeFile an absolute path', () => {
+  assert.equal(DEFAULTS.gate.inhibitSleep, true);
+  assert.equal(DEFAULTS.gate.awakeFile, '/tmp/nestor-awake.json');
+  assert.ok(hasErrorFor(validateConfig({ gate: { inhibitSleep: 'yes' } }), 'gate.inhibitSleep'));
+  for (const bad of ['nestor-awake.json', './a.json', '', 42, null, '/tmp/a\nb.json', `/${'a'.repeat(1100)}`])
+    assert.ok(hasErrorFor(validateConfig({ gate: { awakeFile: bad } }), 'gate.awakeFile'), JSON.stringify(bad));
+  assert.deepEqual(validateConfig({ gate: { inhibitSleep: false, awakeFile: '/run/user/1000/awake.json' } }), {
+    errors: [],
+    warnings: [],
+  });
+});
+
+test('loadConfig: a relative gate.awakeFile falls back to its default', () => {
+  const r = loadConfig(envWithFile(JSON.stringify({ gate: { awakeFile: 'awake.json', inhibitSleep: false } })));
+  assert.equal(r.config.gate.awakeFile, DEFAULTS.gate.awakeFile);
+  assert.equal(r.config.gate.inhibitSleep, false);
+  assert.deepEqual(r.fallbacks, ['gate.awakeFile']);
 });
 
 test('mergeConfig keeps defaults for keys the file leaves out', () => {

@@ -130,6 +130,27 @@ snapshots of its own. Set `NESTOR_HEADLESS_WAIT=1` to keep the wait; the gate th
 interactive host built on the Agent SDK needs this too: the detection knows only the entrypoint, so such a host counts
 as headless. That is a known limit, not a bug.
 
+### Host sleep during a wait
+
+A host that sleeps during a wait defeats keep-warm and stalls running workers, and the wait overruns its
+`--max-wait-min` by the sleep time. Two fields on every `--wait` result show what happened:
+
+- `slept_min`: minutes the host slept during the wait (`slept=<n>` on the `--brief` line, only when above 0). On
+  Linux and macOS the monotonic clock stops during suspend and the wall clock does not, so their drift is the sleep.
+  On Windows the monotonic clock may count sleep, so the gate sums the polls that overran their planned delay by more
+  than a minute. `--max-wait-min` still measures wall-clock time.
+- `inhibit`: whether the host was kept awake. `ok`: the gate held a sleep lock for the wait (`systemd-inhibit` on
+  Linux, `caffeinate -i -w` on macOS, `SetThreadExecutionState` through a hidden `powershell.exe` on Windows). The
+  lock's child process watches the gate's pid, so it ends with the gate on every exit path, `kill -9` included.
+  `external`: an outside no-sleep tool writes a fresh heartbeat to `gate.awakeFile` (under two minutes old, its pid
+  alive), so the gate starts no lock of its own. `unavailable`: no lock could be taken, for example in a bubblewrap
+  sandbox, where `systemd-inhibit` cannot reach the system bus. `off`: `gate.inhibitSleep` is false, the run is
+  headless, or the check was an `ERROR`.
+
+The heartbeat file is read as untrusted input: an absolute path, at most 1 KB, a JSON object with the numbers `at`
+(epoch milliseconds) and `pid`; anything else counts as no heartbeat. On `inhibit=unavailable` the controller tells
+you once that the host may sleep; the README section "Keeping the host awake" lists what still works.
+
 ## The 5-hour off switch
 
 Some plans have no 5-hour limit. Two switches cover the cases:
@@ -480,6 +501,8 @@ of context, and `Min` values are minutes.
 | `gate.shortWaitChunkMin` | `9` | Length of each in-place wait, in minutes. |
 | `gate.shortWaitTries` | `2` | How many in-place waits before handing back `WAIT`. |
 | `gate.timerMin` | `50` | Length of the background timer an orchestrator keeps while it waits for a reply. Below 60. |
+| `gate.inhibitSleep` | `true` | While `--wait` runs, the gate tries to keep the host awake (`systemd-inhibit`, `caffeinate` or `SetThreadExecutionState`). Turn off on a box that never sleeps. |
+| `gate.awakeFile` | `/tmp/nestor-awake.json` | Heartbeat file of an external no-sleep tool. While it is fresh, the gate starts no inhibitor of its own (`inhibit=external`). Absolute path. |
 | `fiveHour.slow.orch` | `50` | Slow pathway: no new orchestrator at or above this 5-hour percentage. |
 | `fiveHour.slow.worker` | `65` | Slow pathway: no new worker at or above this. |
 | `fiveHour.slow.opus` | `55` | Slow pathway: no new Opus agent at or above this. |

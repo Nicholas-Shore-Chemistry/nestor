@@ -38,9 +38,9 @@ class Usage extends Error {}
 // Keys a role's block leaves out: keys no rules file that role reads names. A key not listed is printed, so a new
 // key reaches every orchestrator until it is listed here (tests/config-role.test.mjs keeps this list exact).
 export const ROLE_OMIT = {
-  controller: ['gate.pollSec'],
+  controller: ['gate.pollSec', 'gate.awakeFile'],
   suborch: [
-    'gate.enabled', 'gate.fiveHour.enabled', 'gate.maxWaitMin', 'gate.pollSec',
+    'gate.enabled', 'gate.fiveHour.enabled', 'gate.maxWaitMin', 'gate.pollSec', 'gate.inhibitSleep', 'gate.awakeFile',
     ...['slow', 'fast'].flatMap((p) => ['orch', 'worker', 'opus', 'stop'].map((a) => `fiveHour.${p}.${a}`)),
     'weekly.start', 'weekly.stop', 'context.controllerK', 'context.coldResumeK', 'cache.keepWarm', 'cache.keepWarmMaxMin',
   ],
@@ -54,6 +54,10 @@ export function parseValue(key, text) {
     if (/^(true|on)$/i.test(t)) return { value: true };
     if (/^(false|off)$/i.test(t)) return { value: false };
     return { error: `${key}: must be true, false, on or off` };
+  }
+  if (Object.hasOwn(KEYS, key) && typeof KEYS[key] === 'string') {
+    if (t === '') return { error: `${key}: must be an absolute path` };
+    return { value: t }; // validateConfig checks the path
   }
   if (/^-?\d+$/.test(t)) {
     const n = Number(t);

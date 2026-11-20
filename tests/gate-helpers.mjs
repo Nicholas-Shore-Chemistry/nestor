@@ -3,6 +3,9 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
+// Every gate the tests start inherits process.env: never take a real sleep lock in a test or on CI (#29).
+process.env.NESTOR_INHIBIT_SLEEP = '0';
+
 export const iso = (ms) => new Date(ms).toISOString();
 
 /**

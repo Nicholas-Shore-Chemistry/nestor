@@ -22,9 +22,13 @@
 // then prints headless: false, so the rules wait as in an interactive session.
 // Every verdict line also carries `now` (ISO time), so callers need no `date` command. --log creates
 // the log's parent folder if it is missing (one level only), so callers need no `mkdir`.
+// A --wait result also carries `slept_min` (minutes the host slept during the wait) and `inhibit`: ok (this
+// script holds a sleep lock while it waits), external (a fresh nestor-awake heartbeat at gate.awakeFile),
+// unavailable (no lock possible here) or off (gate.inhibitSleep false, headless, or an ERROR).
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { sleepTracker, startInhibitor } from './lib/awake.mjs';
 import { snapshotDir } from './lib/config-dir.mjs';
 import { DEFAULTS, loadConfig, WARN_UNREADABLE, WARN_LOAD_FAILED, WARN_STILL_INVALID } from './lib/nestor-config.mjs';
 
@@ -211,6 +215,8 @@ export function briefLine(res, now = new Date().toISOString(), ctx) {
   p.push(`5h=${num1(res.five_hour)}`, `7d=${num1(res.seven_day)}`, `reset=${minIso(res.resets_at)}`, `wait=${num1(res.wait_min)}`);
   if (ctx !== undefined) p.push(ctx ? `ctx=${ctx.k}k turns=${ctx.turns ?? '?'}` : 'ctx=?');
   p.push(`kill=${res.kill_workers ? 1 : 0}`, `now=${now.slice(0, 16)}Z`);
+  if (res.slept_min > 0) p.push(`slept=${res.slept_min}`);
+  if (typeof res.inhibit === 'string') p.push(`inhibit=${res.inhibit}`);
   if (res.verdict === 'NO-DATA' && res.needs_reading) p.push('needs_reading=1');
   if (res.headless === true) p.push('headless=1');
   if (res.verdict !== 'GO') p.push(`reason=${JSON.stringify(res.reason ?? '')}`);
@@ -307,6 +313,63 @@ export function log(file, res, meta = {}) {
   }
 }
 
+/** Releases the inhibitor and exits on SIGINT/SIGTERM; returns a function that removes the handlers. */
+function onSignals(release) {
+  const handlers = ['SIGINT', 'SIGTERM'].map((sig) => {
+    const h = () => {
+      release();
+      process.exit(sig === 'SIGINT' ? 130 : 143);
+    };
+    process.once(sig, h);
+    return [sig, h];
+  });
+  return () => {
+    for (const [sig, h] of handlers) process.removeListener(sig, h);
+  };
+}
+
+/**
+ * The --wait loop. `deps` is a test seam: { inhibitor, tracker, sleep, nowMs, started, onSignals }.
+ * Returns the final result (with waited_min, slept_min and inhibit) and its exit code.
+ */
+export async function waitLoop({ first, check, a, headless, config, env = process.env, deps = {} }) {
+  const nowMs = deps.nowMs ?? (() => Date.now());
+  const sleep = deps.sleep ?? ((ms) => new Promise((r) => setTimeout(r, ms)));
+  const started = deps.started ?? nowMs();
+  const tracker = deps.tracker ?? sleepTracker();
+  let res = first;
+  // A reset that passes during the wait ends it at once: a waiting session makes no turns, so
+  // only the caller's next turn can bring the new reading. If the first check already needed a
+  // reading, the caller has just taken a turn: keep polling as for any other verdict.
+  const firstNeeded = res.needs_reading === true;
+  // Every --wait holds the lock (an ERROR, a bad argument, waits for nothing); a GO at once releases it right away.
+  const inh = res.verdict !== 'ERROR'
+    ? await (deps.inhibitor ?? startInhibitor)({
+        // NESTOR_INHIBIT_SLEEP=0 can only turn the inhibitor off (the test suites set it, so CI never starts one).
+        enabled: config.gate.inhibitSleep === true && env.NESTOR_INHIBIT_SLEEP !== '0',
+        headless,
+        awakeFile: config.gate.awakeFile,
+      })
+    : { state: 'off', release() {} };
+  const dropSignals = (deps.onSignals ?? onSignals)(inh.release);
+  const done = (r) => ({ ...r, waited_min: Math.round((nowMs() - started) / 60_000), slept_min: tracker.sleptMin(), inhibit: inh.state });
+  try {
+    while (res.verdict !== 'GO' && res.verdict !== 'ERROR') {
+      if (res.needs_reading && !firstNeeded) break;
+      if (nowMs() - started > a.maxWaitMin * 60_000) return { res: done({ ...res, verdict: 'TIMEOUT' }), code: 3 };
+      const ms = waitDelayMs(a.pollSec, a.maxWaitMin * 60_000 - (nowMs() - started));
+      tracker.beforePoll(ms);
+      await sleep(ms);
+      tracker.afterPoll();
+      res = { ...check(), headless };
+    }
+    return { res: done(res), code: CODES[res.verdict] ?? 2 };
+  } finally {
+    inh.release();
+    dropSignals();
+  }
+}
+
 export async function runCli(argv = process.argv.slice(2), env = process.env) {
   const loaded = loadConfig(env);
   for (const w of loaded.warnings) process.stderr.write(`nestor config: ${w}\n`);
@@ -330,30 +393,17 @@ export async function runCli(argv = process.argv.slice(2), env = process.env) {
     // A foreground wait hangs its caller, and a headless run writes no snapshots of its own, so a long
     // wait gets fresh readings only while an interactive session is open elsewhere.
     // Fail safe: never GO here, only the verdict, so the caller writes its resume point and stops.
-    res = { ...res, wait_skipped: 'headless' };
+    res = { ...res, wait_skipped: 'headless', slept_min: 0, inhibit: 'off' };
     log(a.log, res, logMeta(a, env));
     out(res);
     return CODES[res.verdict] ?? 2;
   }
   log(a.log, res, logMeta(a, env));
   if (a.wait) {
-    // A reset that passes during the wait ends it at once: a waiting session makes no turns, so
-    // only the caller's next turn can bring the new reading. If the first check already needed a
-    // reading, the caller has just taken a turn: keep polling as for any other verdict.
-    const firstNeeded = res.needs_reading === true;
-    while (res.verdict !== 'GO' && res.verdict !== 'ERROR') {
-      if (res.needs_reading && !firstNeeded) break;
-      if (Date.now() - started > a.maxWaitMin * 60_000) {
-        res = { ...res, verdict: 'TIMEOUT', waited_min: Math.round((Date.now() - started) / 60_000) };
-        log(a.log, res, logMeta(a, env));
-        out(res);
-        return 3;
-      }
-      await new Promise((r) => setTimeout(r, waitDelayMs(a.pollSec, a.maxWaitMin * 60_000 - (Date.now() - started))));
-      res = { ...check(), headless };
-    }
-    res = { ...res, waited_min: Math.round((Date.now() - started) / 60_000) };
-    log(a.log, res, logMeta(a, env));
+    const r = await waitLoop({ first: res, check, a, headless, config: loaded.config, env, deps: { started } });
+    log(a.log, r.res, logMeta(a, env));
+    out(r.res);
+    return r.code;
   }
   out(res);
   return CODES[res.verdict] ?? 2;

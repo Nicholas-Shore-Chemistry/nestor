@@ -9,6 +9,12 @@
   reset time and ends the session. The config warns when the key is at or above `context.controllerK` (#28).
 - Docs: list the git-ignored local files every worker worktree needs (`.env`, `wrangler.jsonc`, seed data) in a
   `.worktreeinclude` file; Claude Code copies them into each worktree it creates. `core.md` points to it (#24).
+- Gate: a `--wait` result now carries `slept_min` (minutes the host slept during the wait, `slept=<n>` on the brief
+  line) and `inhibit=ok|external|unavailable|off`. While it waits, the gate tries to hold a sleep lock
+  (`systemd-inhibit`, `caffeinate`, `SetThreadExecutionState`) tied to its own pid, and releases it on every exit
+  path. New config keys `gate.inhibitSleep` (default on) and `gate.awakeFile` (heartbeat of an outside no-sleep
+  tool; a fresh one gives `inhibit=external`). The controller tells the user once when no lock is available. README:
+  "Keeping the host awake" (#29).
 - Tests: no agent's `disallowedTools` names `ToolSearch`, and an agent with a `tools:` list without it must send MCP
   work elsewhere (#24).
 
