@@ -42,7 +42,7 @@ export const ROLE_OMIT = {
   suborch: [
     'gate.enabled', 'gate.fiveHour.enabled', 'gate.maxWaitMin', 'gate.pollSec',
     ...['slow', 'fast'].flatMap((p) => ['orch', 'worker', 'opus', 'stop'].map((a) => `fiveHour.${p}.${a}`)),
-    'weekly.start', 'weekly.stop', 'context.controllerK', 'cache.keepWarm', 'cache.keepWarmMaxMin',
+    'weekly.start', 'weekly.stop', 'context.controllerK', 'context.coldResumeK', 'cache.keepWarm', 'cache.keepWarmMaxMin',
   ],
 };
 export const ROLES = ['controller', 'suborch', 'worker', 'grunt'];

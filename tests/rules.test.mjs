@@ -45,7 +45,7 @@ test('rules mention the rule-relevant keys', () => {
     'grunt.coldIdleMin', 'grunt.coldCtxK', 'grunt.readLowCtxK', 'grunt.readHighCtxK', 'grunt.readLowChars',
     'grunt.readMidChars', 'worker.stopTurns', 'worker.longWaitMin',
     'gate.shortWaitMin', 'gate.timerMin', 'fiveHour.killWorkers', 'gate.enabled', 'gate.fiveHour.enabled',
-    'cache.keepWarm', 'cache.keepWarmMaxMin', 'weekly.stop',
+    'cache.keepWarm', 'cache.keepWarmMaxMin', 'weekly.stop', 'context.coldResumeK',
   ];
   const present = new Set(spans(all));
   assert.deepEqual(required.filter((k) => !present.has(k)), []);
@@ -88,6 +88,13 @@ test('reply channel, timer purpose and keep-warm rules present', () => {
   assert.match(controller, /at least five points below `fiveHour\.killWorkers`/);
   assert.match(controller, /below\s+`weekly\.stop`/);
   assert.match(controller, /never headless/);
+});
+
+test('controller.md names context.coldResumeK in §1 (the exception) and §2 (the stop before a cold wait)', () => {
+  const section = (n) => controller.split(/^## /m).find((s) => s.startsWith(`${n}. `)) ?? '';
+  assert.match(section(1), /Never resume a large cold context\.[\s\S]*?Exception:[\s\S]*?`context\.coldResumeK`/);
+  assert.match(section(2), /Not `GO`:[\s\S]*?above `context\.coldResumeK` or is `\?`[\s\S]*?end the session/);
+  assert.match(section(2), /\*\*Cold\*\*[\s\S]*?`context\.coldResumeK`/);
 });
 
 test('scripts use <root>', () => {

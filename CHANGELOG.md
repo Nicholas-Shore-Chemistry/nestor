@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.2.8 (unreleased)
+
+- Keep-warm is on by default (`cache.keepWarm: true`). With it off, a controller that waited at the gate before a
+  spawn resumed its whole context cold, which its own rules forbid (#28).
+- New config key `context.coldResumeK` (default 60): the controller may resume cold after a gate wait only while its
+  context is at most this size. Above it, or with an unknown context size, it writes the resume point, tells you the
+  reset time and ends the session. The config warns when the key is at or above `context.controllerK` (#28).
+
 ## 0.2.7
 
 - Grunt: MCP reads. The grunt can now call the MCP read tools you list in `nestor/grunt-mcp-read.txt` in your Claude
