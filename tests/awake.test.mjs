@@ -11,7 +11,6 @@ import {
   HEARTBEAT_MAX_AGE_MS,
   heartbeatHolds,
   inhibitCommand,
-  pidAlive,
   sleepTracker,
   startInhibitor,
 } from '../plugins/nestor/scripts/lib/awake.mjs';
@@ -79,16 +78,6 @@ test('slept_min on Windows sums poll gaps that overran by more than a minute', (
   assert.equal(t.sleptMin(), 30);
 });
 
-test('pidAlive: ESRCH is dead, EPERM is alive, a bad pid is dead', () => {
-  const thrower = (code) => () => {
-    throw Object.assign(new Error(code), { code });
-  };
-  assert.equal(pidAlive(1234, () => true), true);
-  assert.equal(pidAlive(1234, thrower('ESRCH')), false);
-  assert.equal(pidAlive(1234, thrower('EPERM')), true);
-  for (const bad of [0, -1, 1.5, '12', null]) assert.equal(pidAlive(bad, () => true), false, String(bad));
-});
-
 const tmpFile = (text) => {
   const d = fs.mkdtempSync(path.join(os.tmpdir(), 'nestor-awake-'));
   const f = path.join(d, 'awake.json');
@@ -96,36 +85,34 @@ const tmpFile = (text) => {
   return f;
 };
 
-test('heartbeat: fresh with a live pid holds; stale, future, dead pid do not', () => {
+test('heartbeat: freshness alone decides; stale and future do not hold', () => {
   const now = 1_700_000_000_000;
-  const alive = () => true;
-  const dead = () => {
-    throw Object.assign(new Error('ESRCH'), { code: 'ESRCH' });
-  };
-  const hb = (v, kill = alive) => heartbeatHolds(tmpFile(JSON.stringify(v)), { now, kill });
+  const hb = (v) => heartbeatHolds(tmpFile(JSON.stringify(v)), { now });
   assert.equal(hb({ at: now - 30_000, pid: 4242 }), true);
+  // The tool's pid lives in the host's PID namespace, which a sandbox never sees: a pid that is not alive here still
+  // holds while the heartbeat is fresh, and so does a heartbeat without one.
+  assert.equal(hb({ at: now - 30_000, pid: 2 ** 30 }), true);
+  assert.equal(hb({ at: now - 30_000 }), true);
   assert.equal(hb({ at: now - HEARTBEAT_MAX_AGE_MS, pid: 4242 }), false);
   assert.equal(hb({ at: now + HEARTBEAT_MAX_AGE_MS + 1, pid: 4242 }), false);
-  assert.equal(hb({ at: now - 30_000, pid: 4242 }, dead), false);
-  assert.equal(heartbeatHolds(tmpFile(JSON.stringify({ at: now, pid: process.pid })), { now }), true);
 });
 
 test('heartbeat: bad JSON, wrong types, oversize, missing file and a relative path do not hold', () => {
   const now = 1_700_000_000_000;
-  const kill = () => true;
-  assert.equal(heartbeatHolds(tmpFile('{not json'), { now, kill }), false);
-  assert.equal(heartbeatHolds(tmpFile('[1,2]'), { now, kill }), false);
-  assert.equal(heartbeatHolds(tmpFile(JSON.stringify({ at: String(now), pid: 1 })), { now, kill }), false);
-  assert.equal(heartbeatHolds(tmpFile(JSON.stringify({ at: now, pid: '1' })), { now, kill }), false);
-  assert.equal(heartbeatHolds(tmpFile(JSON.stringify({ at: now, pid: 1, pad: 'x'.repeat(1100) })), { now, kill }), false);
-  assert.equal(heartbeatHolds(path.join(os.tmpdir(), 'nestor-awake-missing', 'x.json'), { now, kill }), false);
+  assert.equal(heartbeatHolds(tmpFile('{not json'), { now }), false);
+  assert.equal(heartbeatHolds(tmpFile('[1,2]'), { now }), false);
+  assert.equal(heartbeatHolds(tmpFile('null'), { now }), false);
+  assert.equal(heartbeatHolds(tmpFile(JSON.stringify({ at: String(now), pid: 1 })), { now }), false);
+  assert.equal(heartbeatHolds(tmpFile(JSON.stringify({ pid: 1 })), { now }), false);
+  assert.equal(heartbeatHolds(tmpFile(JSON.stringify({ at: now, pid: 1, pad: 'x'.repeat(1100) })), { now }), false);
+  assert.equal(heartbeatHolds(path.join(os.tmpdir(), 'nestor-awake-missing', 'x.json'), { now }), false);
   let read = false;
   const readFile = () => {
     read = true;
     return JSON.stringify({ at: now, pid: 1 });
   };
-  assert.equal(heartbeatHolds('awake.json', { now, kill, readFile }), false);
-  assert.equal(heartbeatHolds('./tmp/awake.json', { now, kill, readFile }), false);
+  assert.equal(heartbeatHolds('awake.json', { now, readFile }), false);
+  assert.equal(heartbeatHolds('./tmp/awake.json', { now, readFile }), false);
   assert.equal(read, false, 'a relative path is never read');
 });
 

@@ -15,6 +15,13 @@
   path. New config keys `gate.inhibitSleep` (default on) and `gate.awakeFile` (heartbeat of an outside no-sleep
   tool; a fresh one gives `inhibit=external`). The controller tells the user once when no lock is available. README:
   "Keeping the host awake" (#29).
+- New tool `tools/keep-awake/nestor-awake` (Linux): started by you outside the sandbox, it holds `systemd-inhibit
+  --what=sleep` while its Konsole window is open, writes the heartbeat the gate reads (`inhibit=external`) and stops
+  after `--max-hours` (12). On KDE Plasma 5 it sets the AC lid action to "turn off screen" for the run and restores
+  it on exit or at the next start after a crash (`--no-lid` skips it). `.desktop` launcher and install steps in
+  `tools/keep-awake/README.md` (#29).
+- Gate: the heartbeat counts when fresh (under two minutes); its `pid` is no longer checked, since a sandbox's own
+  PID namespace never shows the tool's process and the gate reported `unavailable` with the tool running (#29).
 - Tests: no agent's `disallowedTools` names `ToolSearch`, and an agent with a `tools:` list without it must send MCP
   work elsewhere (#24).
 
