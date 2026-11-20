@@ -11,11 +11,11 @@ Read by the controller only, with `core.md`, `replies.md` and `workflow.md`. A b
 - One controller session per work package. At its resume point, or when its context reaches `context.controllerK`,
   write a resume point into the project's status file and end the session. The next session starts fresh from it.
 - A resume point holds what is merged, what is open, the next step, the rulings made, and the paths of brief, plan
-  and status file. It must be enough to go on with no chat history.
+  and status file. It must suffice with no chat history.
 - A planned wait longer than `worker.longWaitMin` (a user decision, a review by a person, overnight): write the resume
   point, then stop and go on in a fresh session. Shorter waits may continue while the cache is warm.
-- **`/clear`, not `/compact`.** Compaction re-reads the whole conversation to summarise it; `/clear` costs nothing.
-  When continuity matters, write a resume point first, then clear.
+- **`/clear`, not `/compact`.** Compaction re-reads the whole conversation; `/clear` costs nothing. For continuity,
+  write a resume point first.
 - **Never resume a large cold context.** After more than 1 h idle the cache has expired, and the next message
   rewrites the whole context at the cache-write rate. Exception: a gate wait (§2) without keep-warm (§3) while the
   latest tick's `ctx` is at most `context.coldResumeK`.
@@ -38,6 +38,7 @@ it prints the one-line form instead (`core.md` §3).
   Otherwise start the gate with `--action orch --wait` in the background (Bash, `run_in_background: true`; longest wait `gate.maxWaitMin`; chunked under §3). The
   harness wakes you when it exits: no `/loop`, scheduled wake-ups or polling turns. `GO`: spawn. `TIMEOUT`: `BLOCKED`, tell the user.
   After a reset `--wait` ends with `NO-DATA`: run `--wait` once more with a short `--max-wait-min` for the new reading, then spawn on `GO`.
+- `inhibit=unavailable` from `--wait`: tell the user once that the host may sleep (README; `gate.inhibitSleep`).
 - **Headless**, instead of the above (the gate prints `headless: true`): don't wait. Not `GO`: write the resume point
   into the status file (if denied, into the report), report the verdict, `reason` and `resets_at`, and stop. The same
   for a sub-orchestrator's `WAIT`: no resume wait; report its `CACHE:` line as the resume point and stop.
@@ -61,8 +62,7 @@ it prints the one-line form instead (`core.md` §3).
   - `SendMessage` gets past the spawn guard, so the foreground gate before a `RESUME` is mandatory.
 
 ## 3. Keep-warm
-Only with `cache.keepWarm` on, never headless. A tiny turn per window reads the context at the cache rate and renews
-the cache; a cold restart writes it all again.
+Only with `cache.keepWarm` on, never headless. A tiny turn per window renews the cache at the read rate.
 - **Applies** to a `WAIT` with `reset` after `warm-until` (not `none`) and to the controller's own wait before a
   spawn, if `wait_min` is at most `cache.keepWarmMaxMin`.
 - **Limit**, yours to keep (`SendMessage` passes the spawn guard): a keep-warm turn may run above the stop line, but

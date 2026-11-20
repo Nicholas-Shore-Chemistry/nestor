@@ -110,6 +110,21 @@ The grunt is optional. It is on for the controller and each sub-orchestrator by 
 config or `Grunt: off` in a brief switches it off. The results so far come from one person's runs, so nothing is claimed
 about what it does for your usage.
 
+## Keeping the host awake
+
+A run waits for hours at times: for the usage window to reset, or between keep-warm turns. If the computer sleeps
+then, the cache expires and running workers stall. While it waits, the usage gate tries to hold a sleep lock
+(`systemd-inhibit` on Linux, `caffeinate` on macOS, `SetThreadExecutionState` on Windows) and releases it when the
+wait ends. Its result says `inhibit=ok` when that worked and `inhibit=unavailable` when it did not, and `slept=<n>`
+when the host slept anyway. The controller tells you once when the lock is unavailable.
+
+- A sleep lock doesn't stop sleep on lid close on most systems (logind `HandleLidSwitch`, macOS outside clamshell
+  mode). Keep the lid open, or the machine on power with an external display.
+- On battery, the system may sleep or hibernate at low charge regardless of the lock.
+- Inside a sandbox that blocks the system bus (Claude Code's bubblewrap sandbox on Linux), the lock is unavailable.
+  An outside no-sleep tool that writes a heartbeat to `gate.awakeFile` makes the gate report `inhibit=external`.
+- On a dedicated box that never sleeps, `gate.inhibitSleep=false` turns the lock off.
+
 ## Uninstall
 
 ```

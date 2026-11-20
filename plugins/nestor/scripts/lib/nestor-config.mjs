@@ -2,6 +2,7 @@
 // The file (<config>/nestor/config.json) holds only what differs from DEFAULTS.
 // An invalid or unreadable file never opens the gate: bad keys fall back to their defaults.
 import fs from 'node:fs';
+import path from 'node:path';
 import { nestorConfigPath } from './config-dir.mjs';
 
 function deepFreeze(o) {
@@ -20,6 +21,8 @@ export const DEFAULTS = deepFreeze({
     shortWaitChunkMin: 9,
     shortWaitTries: 2,
     timerMin: 50,
+    inhibitSleep: true,
+    awakeFile: '/tmp/nestor-awake.json',
   },
   fiveHour: {
     slow: { orch: 50, worker: 65, opus: 55, stop: 80 },
@@ -144,6 +147,10 @@ function valueIssues(cfg) {
         else walk(dv, v, key);
       } else if (typeof dv === 'boolean') {
         if (typeof v !== 'boolean') issues.push({ key, message: `${key}: must be true or false` });
+      } else if (typeof dv === 'string') {
+        // The only string keys are file paths: absolute, one line, of sane length.
+        if (typeof v !== 'string' || v.length > 1024 || /[\0\r\n]/.test(v) || !path.isAbsolute(v))
+          issues.push({ key, message: `${key}: must be an absolute path` });
       } else if (typeof v !== 'number' || !Number.isSafeInteger(v)) {
         issues.push({ key, message: `${key}: must be a whole number` });
       } else if (isPercentKey(key) && (v < 1 || v > 100)) {

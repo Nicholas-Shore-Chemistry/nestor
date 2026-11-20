@@ -245,6 +245,27 @@ test('G1: a huge pollSec still ends the wait in TIMEOUT (exit 3) within about ma
   assert.ok(Date.now() - t0 < 8000);
 });
 
+test('#29: a --wait result carries slept_min and inhibit; NESTOR_INHIBIT_SLEEP=0 (set for all tests) means off', () => {
+  assert.equal(process.env.NESTOR_INHIBIT_SLEEP, '0');
+  const r = spawnSync(process.execPath, [GATE, '--wait', '--max-wait-min', '0.01', '--poll-sec', '1'], {
+    env: { ...process.env, CLAUDE_CODE_ENTRYPOINT: 'cli', CLAUDE_CONFIG_DIR: cfgDir([{ five: 70 }]) },
+    encoding: 'utf8',
+    timeout: 10_000,
+  });
+  assert.equal(r.status, 3, r.stdout + r.stderr);
+  const out = JSON.parse(r.stdout);
+  assert.equal(out.verdict, 'TIMEOUT');
+  assert.equal(out.inhibit, 'off');
+  assert.equal(out.slept_min, 0);
+  const b = spawnSync(process.execPath, [GATE, '--wait', '--max-wait-min', '0.01', '--poll-sec', '1', '--brief'], {
+    env: { ...process.env, CLAUDE_CODE_ENTRYPOINT: 'cli', CLAUDE_CONFIG_DIR: cfgDir([{ five: 70 }]) },
+    encoding: 'utf8',
+    timeout: 10_000,
+  });
+  assert.match(b.stdout, /^TIMEOUT .* inhibit=off reason=/);
+  assert.doesNotMatch(b.stdout, /slept=/);
+});
+
 test('G1: waitDelayMs caps the sleep at the time left, with a floor', () => {
   assert.equal(waitDelayMs(1e6, 5000), 5050);
   assert.equal(waitDelayMs(30, 600_000), 30_000);
