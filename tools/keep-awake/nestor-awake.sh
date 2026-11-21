@@ -245,12 +245,14 @@ draw() {
 
 [ "$(power_source)" = battery ] && echo "Warning: starting on battery." >&2
 
-while [ "$(date +%s)" -lt "$END_S" ]; do
+# Heartbeat and status at least once, even if the end time passed during start-up.
+while :; do
   write_heartbeat
   draw
   if ! kill -0 "$INHIBIT_PID" 2>/dev/null; then fail "the sleep lock ended unexpectedly"; fi
   left=$((END_S - $(date +%s)))
+  if [ "$left" -le 0 ]; then break; fi
   if [ "$left" -gt "$TICK" ]; then left=$TICK; fi
-  if [ "$left" -gt 0 ]; then sleep "$left"; fi
+  sleep "$left"
 done
 echo "Reached --max-hours ${MAX_HOURS}; ending."

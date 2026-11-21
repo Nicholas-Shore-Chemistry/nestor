@@ -224,6 +224,21 @@ test('battery start warns; bad options exit 2', { skip }, () => {
   assert.equal(spawnSync('bash', [SCRIPT, '--file', 'rel.json'], { env: t.env }).status, 2);
 });
 
+test('the status shows once even when the end time passes before the first loop check', { skip }, () => {
+  const t = setup({ ac: '0' });
+  // A slow start: after the first `date +%s` (START_S), the clock reads 5 s later.
+  fs.writeFileSync(path.join(t.d, 'bin', 'date'), `#!/bin/bash
+if [ "$1" = +%s ]; then
+  n=$(/bin/date +%s)
+  if [ -f "$SHIM_DIR/date-once" ]; then echo $((n + 5)); else touch "$SHIM_DIR/date-once"; echo "$n"; fi
+else /bin/date "$@"; fi
+`, { mode: 0o755 });
+  const r = run(t, ['--max-hours', '0.0005', '--no-lid']);
+  assert.equal(r.status, 0, r.stderr);
+  assert.match(r.stdout, /ON BATTERY/);
+  assert.equal(fs.existsSync(t.hb), false, 'heartbeat removed on exit');
+});
+
 test('the .desktop launcher opens Konsole with the window title', () => {
   const desk = fs.readFileSync(path.join(DIR, 'nestor-awake.desktop'), 'utf8');
   assert.match(desk, /^\[Desktop Entry\]$/m);

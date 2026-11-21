@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.2.10 (unreleased)
+
+- `nestor-awake`: the heartbeat and status screen now show at least once, even when the end time passes during
+  start-up. A very short `--max-hours` on a slow machine could end without either, which made a test fail at random
+  on CI.
+
 ## 0.2.9
 
 - Worktree workers now start from the run's branch. Claude Code bases a worktree on the remote default branch, so on a
