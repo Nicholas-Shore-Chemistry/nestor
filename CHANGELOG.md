@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.2.9 (unreleased)
+## 0.2.9
 
 - Worktree workers now start from the run's branch. Claude Code bases a worktree on the remote default branch, so on a
   feature branch the workers missed the earlier tasks' files. `core.md` §2: off the default branch, a worktree
