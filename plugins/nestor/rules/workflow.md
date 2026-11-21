@@ -7,8 +7,8 @@ Usage is turns times context size: every turn re-reads the whole context. **Shor
 routing**: split work so that no context grows large. **Restart instead of carrying on**: a fresh agent costs its
 start-up context once, a large context its full size on every turn; hand over through files (brief, handoff, status
 file), never through chat history. **Output is the expensive token type**: don't echo files, diffs or code back
-without need; reports go to files, replies stay at most 15 lines. Keep standing instructions short; put task detail
-in briefs and skills that load only when needed.
+without need; reports go to files, replies stay at most 15 lines. Put task detail in briefs, not
+standing rules.
 
 ## 2. The loop
 - **Plan.** Read the spec and the existing code. Break the work into atomic tasks that can each be checked on their
@@ -60,7 +60,7 @@ Pick the cheapest seat that gets the task right the first time. **Lower effort b
 - A denied action is a result: stop and report it. Never reach the same result another way.
 - Every command an agent runs is a single plain command, and NestOr's own steps use only `node`, `git` or
   `sleep <n>`: no `&&`, `;`, pipes, `$(...)`, redirections, `cd` or `VAR=value` prefixes, no `mkdir`, `ls`,
-  `cat`, `test`, `pwd` or `date`; read files with the Read tool. A fresh install allows little more without a prompt,
-  and a headless run denies the rest. The usage gate creates `orchestration/` itself and prints `now`.
+  `cat`, `test`, `pwd` or `date`; read files with the Read tool (a headless run denies the rest).
+  The usage gate creates `orchestration/` itself and prints `now`.
 - In `<project>/orchestration/` an orchestrator writes only `HANDOFF-*.md`, `STATUS.md` and `rules.md`, the three
   names the run skill pre-approves. The gate writes its own log; no agent writes it.
