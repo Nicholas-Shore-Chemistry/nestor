@@ -40,6 +40,16 @@ seed/
 Never list secrets a worker shouldn't see: every worktree gets the matching files. A `WorktreeCreate` hook replaces
 this copy step; then the brief needs its own setup step that copies the files.
 
+A worktree also starts from the remote default branch (`main`), not from the branch the run works on. On a feature
+branch, the earlier tasks' files are missing there. Two fixes, best used together:
+
+- In the project's `.claude/settings.json`, set `"worktree": { "baseRef": "head" }`. Claude Code then bases each
+  worktree on the current local `HEAD`, the orchestrator's branch included. It can't name a branch.
+- Make the brief's first step `git merge --ff-only <run branch>`, then `git log --oneline -3` to check that the
+  earlier tasks' commits are there. If the merge fails, the worker stops and reports.
+
+The orchestrator merges the worker's branch into the run's branch, never into the default branch.
+
 ## Steps that can be checked
 
 Write a step so that a script can tell whether it passed. "Run `npm test`; 0 failures" can be checked; "make sure it

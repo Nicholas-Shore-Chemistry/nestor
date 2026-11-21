@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.2.9 (unreleased)
+
+- Worktree workers now start from the run's branch. Claude Code bases a worktree on the remote default branch, so on a
+  feature branch the workers missed the earlier tasks' files. `core.md` §2: off the default branch, a worktree
+  worker's brief starts with `git merge --ff-only <branch>`, and the orchestrator merges the worker's branch into its
+  own. Docs: `worktree.baseRef: "head"` in the project settings, plus a `git log` check (#35).
+
 ## 0.2.8
 
 - Keep-warm is on by default (`cache.keepWarm: true`). With it off, a controller that waited at the gate before a

@@ -255,3 +255,12 @@ test('the section reference check catches a stale reference', () => {
   assert.deepEqual(sectionRefs('sections 2 to 4 of `core.md`', null).map((r) => r.section), ['2', '4']);
   assert.ok(!headings(core).has('4.2'), 'core.md has no §4.2 any more');
 });
+
+test('worktree workers start from the orchestrator branch and merge back into it (#35)', () => {
+  const core = readRule('core.md');
+  assert.match(core, /git merge --ff-only <your branch>/);
+  assert.match(core, /merge its branch into yours/);
+  const doc = fs.readFileSync(path.join(ROOT, 'docs', 'writing-briefs.md'), 'utf8');
+  assert.match(doc, /"baseRef": "head"/);
+  assert.match(doc, /never into the default branch/);
+});

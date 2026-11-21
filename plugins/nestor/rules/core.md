@@ -31,7 +31,8 @@ is not. Fast only when the user picks it.
 | Worker slots an Opus worker takes | `agents.slow.opusSlots` | `agents.fast.opusSlots` |
 
 - Count running agents before each dispatch. Parallel workers only on disjoint files, each in its own worktree
-  (`isolation: worktree`; local files via `.worktreeinclude`). One review at a time: fix rounds queue behind it.
+  (`isolation: worktree`; local files via `.worktreeinclude`). Off the default branch, its brief starts with
+  `git merge --ff-only <your branch>`; merge its branch into yours. One review at a time: fix rounds queue behind it.
 - Reviewers never wait for work. Review tasks collect until a batch is complete (per bundle on fast; on slow, per task
   only when that task can't be bundled), then one reviewer gets the whole batch and returns when done. Never keep a
   reviewer alive between batches.
@@ -95,5 +96,4 @@ Record the controller's session id (its skill names it; a sub-orchestrator reads
 handoff and the status file. Never delete files outside the brief's scope; list them as open questions instead.
 
 ## 8. Limit of enforcement
-The spawn guard enforces the usage gate and nothing else. Agent counts, caps and every other rule here: you keep those
-yourself.
+The spawn guard enforces the usage gate only. Agent counts, caps and every other rule here: you keep them yourself.
